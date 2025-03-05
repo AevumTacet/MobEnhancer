@@ -1,0 +1,17 @@
+# replaceHostiles: replaces *SOME* hostile mobs with zombies
+replaceHostiles: false
+
+# extraSpawns: spawn extra zombies
+extraSpawns: true
+
+# endSpawn: replace 12,5% of endermen with zombies in The End
+endSpawn: true
+
+# displayType: show the zombie's type as the zombie's nametag
+displayType: false
+
+# disableCombustion: makes Zombies (& any other zombie type) unable to combust/burn.
+disableCombustion: false
+
+# zombifiedPiglinAttack: makes Zombified Piglins RANDOMLY attack players without players having to attack them first.
+zombifiedPiglinAttack: true

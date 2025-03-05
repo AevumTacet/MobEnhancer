@@ -1,0 +1,14 @@
+name: MobEnhancer
+version: '1.9'
+main: com.mobenhancer.MobEnhancer
+api-version: '1.21.4'
+authors: [ Telwa ]
+description: Add new abilities to the old mobs.
+commands:
+  MobEnhancer:
+    description: Reloads the plugin.
+    permission: mobenhancer.reload
+  zombspawn:
+    description: Spawns a zombie of a specific type.
+    usage: '/<command> <type>'
+    permission: mobenhancer.spawn
