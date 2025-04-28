@@ -31,11 +31,13 @@ public final class MobEnhancer extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new Listen(rng, this), this);
         getServer().getPluginManager().registerEvents(new CreeperControl(this), this);
         getServer().getPluginManager().registerEvents(new SkeletonControl(this), this);
-                getServer().getPluginManager().registerEvents(new EndermanControl(this), this);
+        getServer().getPluginManager().registerEvents(new EndermanControl(this), this);
         getServer().getPluginManager().registerEvents(new SpiderControl(this), this);
+        getServer().getPluginManager().registerEvents(new HordeControl(this), this);
 
         registerType(new Default());
         // registerType(new Explosive());
+        registerType(new Breaker());
         registerType(new Fiery(rng));
         registerType(new Flash());
         //registerType(new Giant());
