@@ -9,6 +9,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.util.Random;
 
 public class HordeControl implements Listener {
+    @SuppressWarnings("unused")
     private final JavaPlugin plugin;
     private final Random random = new Random();
     private static final double CALL_RADIUS = 60.0;
