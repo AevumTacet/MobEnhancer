@@ -12,13 +12,44 @@ import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.profile.PlayerProfile;
+import org.bukkit.profile.PlayerTextures;
 import org.bukkit.util.Vector;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.Random;
+import java.util.UUID;
 
 public class Thrower implements CustomType {
+
+    private static final String Custom_TEXTURE_HASH = "fb0bb66eb58ef8e2df20b8b277bf90188d4e23b2cea89d3598ae4052700bf4b3";
+  
+    @SuppressWarnings("deprecation")
+    private ItemStack createCustomHead() {
+        ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta meta = (SkullMeta) head.getItemMeta();
+        
+        PlayerProfile profile = Bukkit.createPlayerProfile(UUID.randomUUID(), "Custom");
+        PlayerTextures textures = profile.getTextures();
+        
+        try {
+            URL skinUrl = new URL("https://textures.minecraft.net/texture/" + Custom_TEXTURE_HASH);
+            textures.setSkin(skinUrl);
+        } catch (MalformedURLException ex) {
+            throw new RuntimeException("URL de textura inválida", ex);
+        }
+        
+        profile.setTextures(textures);
+        meta.setOwnerProfile(profile);
+        head.setItemMeta(meta);
+        
+        return head;
+    }
+
     private final Random random;
 
     public Thrower(Random random) {
@@ -38,10 +69,11 @@ public class Thrower implements CustomType {
 
     @Override
     public void onSpawn(Zombie zombie, CreatureSpawnEvent e) {
-        if (zombie.getEquipment() != null) {
-            zombie.getEquipment().setHelmet(new ItemStack(Material.ANVIL), false);
+
+            ItemStack CustomHead = createCustomHead();
+            zombie.getEquipment().setHelmet(CustomHead);
             zombie.getEquipment().setHelmetDropChance(0);
-        }
+
 
         zombie.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, PotionEffect.INFINITE_DURATION, 1, false, false));
         zombie.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, PotionEffect.INFINITE_DURATION, 5, false, false));

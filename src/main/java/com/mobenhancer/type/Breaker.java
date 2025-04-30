@@ -8,13 +8,19 @@ import org.bukkit.entity.Zombie;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.profile.PlayerProfile;
+import org.bukkit.profile.PlayerTextures;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 public class Breaker implements CustomType {
     private static final Set<Material> BREAKABLE = new HashSet<>(Arrays.asList(
@@ -139,6 +145,8 @@ public class Breaker implements CustomType {
     Material.BLACK_WOOL
     ));
     
+    private static final String BREAKER_TEXTURE_HASH = "6951d6c3efc5e702307e1b8990afdf88cea37b763f1a2ce574a8c69156820bfb";
+
     @Override
     public String getId() {
         return "breaker";
@@ -151,11 +159,14 @@ public class Breaker implements CustomType {
 
     @Override
     public void onSpawn(Zombie zombie, CreatureSpawnEvent e) {
+        ItemStack breakerHead = createBreakerHead();
         // Apariencia identificativa
         zombie.getEquipment().setItemInOffHand(new ItemStack(Material.IRON_AXE));
         zombie.getEquipment().setItemInOffHandDropChance(0);
         zombie.getEquipment().setItemInMainHand(new ItemStack(Material.IRON_SHOVEL));
         zombie.getEquipment().setItemInMainHandDropChance(0);
+        zombie.getEquipment().setHelmet(breakerHead);
+        zombie.getEquipment().setHelmetDropChance(0);
 
         zombie.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, PotionEffect.INFINITE_DURATION, 3, false, false));
         
@@ -230,5 +241,27 @@ public class Breaker implements CustomType {
             0.3, 0.5, 0.3,
             0.1
         );
+    }
+
+    @SuppressWarnings("deprecation")
+    private ItemStack createBreakerHead() {
+        ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta meta = (SkullMeta) head.getItemMeta();
+        
+        PlayerProfile profile = Bukkit.createPlayerProfile(UUID.randomUUID(), "Breaker");
+        PlayerTextures textures = profile.getTextures();
+        
+        try {
+            URL skinUrl = new URL("https://textures.minecraft.net/texture/" + BREAKER_TEXTURE_HASH);
+            textures.setSkin(skinUrl);
+        } catch (MalformedURLException ex) {
+            throw new RuntimeException("URL de textura inválida", ex);
+        }
+        
+        profile.setTextures(textures);
+        meta.setOwnerProfile(profile);
+        head.setItemMeta(meta);
+        
+        return head;
     }
 }
