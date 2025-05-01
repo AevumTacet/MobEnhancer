@@ -13,6 +13,7 @@ import org.bukkit.persistence.PersistentDataType;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@SuppressWarnings("unused")
 public class TypeSpawn implements CommandExecutor, TabExecutor {
     private final MobEnhancer instance;
 

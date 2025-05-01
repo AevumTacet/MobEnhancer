@@ -70,6 +70,11 @@ public class Thrower implements CustomType {
     @Override
     public void onSpawn(Zombie zombie, CreatureSpawnEvent e) {
         zombie.setAdult();
+        
+        // Restablecer salud máxima a la de un zombie adulto normal
+        double adultHealth = zombie.getAttribute(Attribute.MAX_HEALTH).getDefaultValue();
+        zombie.getAttribute(Attribute.MAX_HEALTH).setBaseValue(adultHealth);
+        zombie.setHealth(adultHealth);
 
         ItemStack CustomHead = createCustomHead();
         zombie.getEquipment().setHelmet(CustomHead);
@@ -77,7 +82,8 @@ public class Thrower implements CustomType {
 
 
         zombie.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, PotionEffect.INFINITE_DURATION, 1, false, false));
-        zombie.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, PotionEffect.INFINITE_DURATION, 3, false, false));
+        zombie.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, PotionEffect.INFINITE_DURATION, 2, false, false));
+        zombie.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, PotionEffect.INFINITE_DURATION, 3, false, false));
 
         incrAttribute(zombie, Attribute.ATTACK_DAMAGE, 8);
         incrAttribute(zombie, Attribute.EXPLOSION_KNOCKBACK_RESISTANCE, 100);
@@ -86,7 +92,7 @@ public class Thrower implements CustomType {
     }
 
     @Override
-    public void onAttack(Zombie zombie, EntityDamageByEntityEvent e) { // TODO
+    public void onAttack(Zombie zombie, EntityDamageByEntityEvent e) { 
         if (!(e.getEntity() instanceof LivingEntity l)) return;
 
         zombie.addPassenger(l);

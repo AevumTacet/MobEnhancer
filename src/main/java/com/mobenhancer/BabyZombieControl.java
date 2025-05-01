@@ -24,6 +24,10 @@ public class BabyZombieControl implements Listener {
     }
 
     private boolean isValidBabyZombie(Zombie zombie) {
+        // Verificar si ya es un tipo personalizado
+        if (MobEnhancer.getInstance().getType(zombie) != null) {
+            return false;
+        }
         // Aceptar baby zombies normales y zombified piglin bebés
         return !zombie.isAdult() && (
             zombie.getType() == EntityType.ZOMBIE ||
