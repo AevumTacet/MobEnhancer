@@ -55,14 +55,14 @@ public class IgnitionControl implements Listener {
         if (mob.isDead() || mob.isInWater()) return;
         
         Location ubicacion = mob.getLocation();
-        int yBloqueMasAlto = ubicacion.getWorld().getHighestBlockYAt(
+        int HighestBlock = ubicacion.getWorld().getHighestBlockYAt(
             ubicacion, 
             HeightMap.MOTION_BLOCKING
         );
         
-        boolean expuestoAlSol = ubicacion.getBlockY() >= yBloqueMasAlto;
+        boolean SunExposed = ubicacion.getBlockY() >= HighestBlock;
         
-        if (expuestoAlSol) {
+        if (SunExposed) {
             // Aumentamos el tiempo de fuego para mayor efecto
             mob.setFireTicks(Math.max(mob.getFireTicks(), 160));
         }

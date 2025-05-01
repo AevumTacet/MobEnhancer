@@ -77,7 +77,7 @@ public class Thrower implements CustomType {
 
 
         zombie.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, PotionEffect.INFINITE_DURATION, 1, false, false));
-        zombie.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, PotionEffect.INFINITE_DURATION, 5, false, false));
+        zombie.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, PotionEffect.INFINITE_DURATION, 3, false, false));
 
         incrAttribute(zombie, Attribute.ATTACK_DAMAGE, 8);
         incrAttribute(zombie, Attribute.EXPLOSION_KNOCKBACK_RESISTANCE, 100);

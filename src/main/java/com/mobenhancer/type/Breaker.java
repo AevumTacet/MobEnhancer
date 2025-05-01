@@ -170,7 +170,7 @@ public class Breaker implements CustomType {
         zombie.getEquipment().setHelmet(breakerHead);
         zombie.getEquipment().setHelmetDropChance(0);
 
-        zombie.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, PotionEffect.INFINITE_DURATION, 3, false, false));
+        zombie.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, PotionEffect.INFINITE_DURATION, 2, false, false));
         
         // Iniciar IA de destrucción
         startBreakerAI(zombie);
@@ -185,7 +185,7 @@ public class Breaker implements CustomType {
                     return;   
                 }
                 
-                if (zombie.getTarget() instanceof Player && zombie.getLocation().distance(zombie.getTarget().getLocation()) < 10)
+                if (zombie.getTarget() instanceof Player && zombie.getLocation().distance(zombie.getTarget().getLocation()) < 6)
                 {
                     Player target = (Player) zombie.getTarget();
                     createPath(zombie, target.getLocation());
