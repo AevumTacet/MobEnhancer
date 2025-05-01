@@ -57,6 +57,7 @@ public class Hopper implements CustomType {
 
     @Override
     public void onSpawn(Zombie zombie, CreatureSpawnEvent e) {
+        zombie.setAdult();
         ItemStack CustomHead = createCustomHead();
         zombie.getEquipment().setHelmet(CustomHead);
         zombie.getEquipment().setHelmetDropChance(0);

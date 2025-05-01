@@ -35,6 +35,7 @@ public class Thief implements CustomType {
 
     @Override
     public void onSpawn(Zombie zombie, CreatureSpawnEvent e) {
+        zombie.setAdult();
         if (zombie.getEquipment() == null) return;
 
         zombie.getEquipment().setHelmet(new ItemStack(Material.DARK_OAK_FENCE_GATE), false);

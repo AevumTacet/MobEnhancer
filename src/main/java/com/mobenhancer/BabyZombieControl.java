@@ -32,15 +32,18 @@ public class BabyZombieControl implements Listener {
     }
 
     private void adjustZombieHealth(Zombie zombie) {
-        // Obtener salud máxima original
+        // Usar Attribute.GENERIC_MAX_HEALTH (correcto)
         double originalMaxHealth = zombie.getAttribute(Attribute.MAX_HEALTH).getBaseValue();
         
-        // Calcular nueva salud (1/3 de la original)
-        double newMaxHealth = originalMaxHealth * 0.25;
+        // Reducir al 20% (ajustable)
+        double newMaxHealth = originalMaxHealth * 0.20; 
         
         // Aplicar cambios
         zombie.getAttribute(Attribute.MAX_HEALTH).setBaseValue(newMaxHealth);
-        zombie.setHealth(Math.min(zombie.getHealth(), newMaxHealth));  // Ajustar salud actual
+        zombie.setHealth(newMaxHealth); // Forzar salud actual al nuevo máximo
         
+        // Debug (opcional)
+        zombie.setCustomName("HP: " + newMaxHealth);
+        zombie.setCustomNameVisible(true);
     }
 }

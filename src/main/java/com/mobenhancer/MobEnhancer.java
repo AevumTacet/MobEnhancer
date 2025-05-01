@@ -34,6 +34,8 @@ public final class MobEnhancer extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new EndermanControl(this), this);
         getServer().getPluginManager().registerEvents(new SpiderControl(this), this);
         getServer().getPluginManager().registerEvents(new HordeControl(this), this);
+        getServer().getPluginManager().registerEvents(new BabyZombieControl(), this);
+        getServer().getPluginManager().registerEvents(new IgnitionControl(this), this);
 
         registerType(new Default());
         // registerType(new Explosive());
@@ -46,7 +48,7 @@ public final class MobEnhancer extends JavaPlugin {
         registerType(new Hydra());
         // registerType(new Ninja(rng));
         registerType(new Pillar());
-        registerType(new Puller());
+        //registerType(new Puller());
         registerType(new Thief(rng));
         registerType(new Latcher());
         // registerType(new Soul(rng));

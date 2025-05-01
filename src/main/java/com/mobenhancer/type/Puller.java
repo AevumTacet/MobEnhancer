@@ -7,6 +7,7 @@ import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Zombie;
+import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -21,6 +22,11 @@ public class Puller implements CustomType {
     @Override
     public String getName() {
         return "Puller";
+    }
+
+    @Override
+    public void onSpawn(Zombie zombie, CreatureSpawnEvent e) {
+        zombie.setAdult();
     }
 
     @Override

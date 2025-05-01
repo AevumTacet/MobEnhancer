@@ -56,6 +56,7 @@ public class Latcher implements CustomType {
 
     @Override
     public void onSpawn(Zombie zombie, CreatureSpawnEvent e) {
+        zombie.setBaby();
         ItemStack CustomHead = createCustomHead();
         zombie.getEquipment().setHelmet(CustomHead);
         zombie.getEquipment().setHelmetDropChance(0);

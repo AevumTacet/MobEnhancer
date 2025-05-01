@@ -69,10 +69,11 @@ public class Thrower implements CustomType {
 
     @Override
     public void onSpawn(Zombie zombie, CreatureSpawnEvent e) {
+        zombie.setAdult();
 
-            ItemStack CustomHead = createCustomHead();
-            zombie.getEquipment().setHelmet(CustomHead);
-            zombie.getEquipment().setHelmetDropChance(0);
+        ItemStack CustomHead = createCustomHead();
+        zombie.getEquipment().setHelmet(CustomHead);
+        zombie.getEquipment().setHelmetDropChance(0);
 
 
         zombie.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, PotionEffect.INFINITE_DURATION, 1, false, false));

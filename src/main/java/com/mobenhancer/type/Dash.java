@@ -3,6 +3,7 @@ package com.mobenhancer.type;
 import com.mobenhancer.CustomType;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Zombie;
+import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.util.Vector;
 
@@ -25,6 +26,11 @@ public class Dash implements CustomType {
         return "Dasher";
     }
 
+    @Override
+    public void onSpawn(Zombie zombie, CreatureSpawnEvent e) {
+        zombie.setAdult();
+    }
+    
     @Override
     public void onAttack(Zombie zombie, EntityDamageByEntityEvent e) {
         if (!(e.getEntity() instanceof Player p) || !p.isBlocking()) return;

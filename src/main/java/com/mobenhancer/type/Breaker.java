@@ -159,6 +159,8 @@ public class Breaker implements CustomType {
 
     @Override
     public void onSpawn(Zombie zombie, CreatureSpawnEvent e) {
+        zombie.setAdult();
+            
         ItemStack breakerHead = createBreakerHead();
         // Apariencia identificativa
         zombie.getEquipment().setItemInOffHand(new ItemStack(Material.IRON_AXE));

@@ -29,6 +29,7 @@ public class Hydra implements CustomType {
 
     @Override
     public void onSpawn(Zombie zombie, CreatureSpawnEvent e) {
+        zombie.setAdult();
         if (zombie instanceof PigZombie) incrAttribute(zombie, Attribute.MAX_HEALTH, -12);
         zombie.setRemoveWhenFarAway(true);
     }

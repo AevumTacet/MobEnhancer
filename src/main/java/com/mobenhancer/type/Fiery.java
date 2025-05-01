@@ -33,6 +33,7 @@ public class Fiery implements CustomType {
 
     @Override
     public void onSpawn(Zombie zombie, CreatureSpawnEvent e) {
+        zombie.setAdult();
         if (zombie instanceof PigZombie) {
             e.setCancelled(true);
             return;

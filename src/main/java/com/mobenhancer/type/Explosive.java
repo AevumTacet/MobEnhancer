@@ -22,6 +22,8 @@ public class Explosive implements CustomType {
 
     @Override
     public void onSpawn(Zombie zombie, CreatureSpawnEvent e) {
+        zombie.setAdult();
+        
         if (zombie.getEquipment() == null) return;
 
         zombie.getEquipment().setHelmet(new ItemStack(Material.TNT), false);

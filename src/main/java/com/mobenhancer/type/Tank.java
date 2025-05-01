@@ -25,6 +25,7 @@ public class Tank implements CustomType {
 
     @Override
     public void onSpawn(Zombie zombie, CreatureSpawnEvent e) {
+        zombie.setAdult();
         if (zombie.getEquipment() != null) {
             zombie.getEquipment().setHelmet(new ItemStack(Material.ANVIL), false);
             zombie.getEquipment().setHelmetDropChance(0);
