@@ -9,6 +9,7 @@ import java.util.UUID;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Sound;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Zombie;
 import org.bukkit.event.entity.CreatureSpawnEvent;
@@ -56,10 +57,11 @@ public class Latcher implements CustomType {
 
     @Override
     public void onSpawn(Zombie zombie, CreatureSpawnEvent e) {
-        zombie.setBaby();
+        zombie.setAdult();
         ItemStack CustomHead = createCustomHead();
         zombie.getEquipment().setHelmet(CustomHead);
         zombie.getEquipment().setHelmetDropChance(0);
+        incrAttribute(zombie, Attribute.SCALE, -0.3);
     }
 
     @Override

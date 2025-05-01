@@ -69,6 +69,6 @@ public class Flash implements CustomType {
 
         zombie.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, PotionEffect.INFINITE_DURATION, 4, false, false));
         incrAttribute(zombie, Attribute.WATER_MOVEMENT_EFFICIENCY, 1.5);
-        incrAttribute(zombie, Attribute.SCALE, -0.3);
+        incrAttribute(zombie, Attribute.SCALE, -0.15);
     }
 }
