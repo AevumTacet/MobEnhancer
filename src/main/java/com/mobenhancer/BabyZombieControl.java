@@ -47,7 +47,7 @@ public class BabyZombieControl implements Listener {
         zombie.setHealth(newMaxHealth); // Forzar salud actual al nuevo máximo
         
         // Debug (opcional)
-        zombie.setCustomName("HP: " + newMaxHealth);
-        zombie.setCustomNameVisible(true);
+        // zombie.setCustomName("HP: " + newMaxHealth);
+        // zombie.setCustomNameVisible(true);
     }
 }

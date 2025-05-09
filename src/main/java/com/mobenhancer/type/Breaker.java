@@ -170,7 +170,7 @@ public class Breaker implements CustomType {
         zombie.getEquipment().setHelmet(breakerHead);
         zombie.getEquipment().setHelmetDropChance(0);
 
-        zombie.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, PotionEffect.INFINITE_DURATION, 1, false, false));
+        zombie.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, PotionEffect.INFINITE_DURATION, 2, false, false));
         
         // Iniciar IA de destrucción
         startBreakerAI(zombie);

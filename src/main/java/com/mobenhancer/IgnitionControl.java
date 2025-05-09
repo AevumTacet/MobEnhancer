@@ -64,7 +64,7 @@ public class IgnitionControl implements Listener {
         
         if (SunExposed) {
             // Aumentamos el tiempo de fuego para mayor efecto
-            mob.setFireTicks(Math.max(mob.getFireTicks(), 160));
+            mob.setFireTicks(Math.max(mob.getFireTicks(), 200));
         }
     }
 }
