@@ -63,7 +63,7 @@ public class Infected implements CustomType {
         zombie.getEquipment().setHelmet(CustomHead);
         zombie.getEquipment().setHelmetDropChance(0);
 
-        zombie.addPotionEffect(new PotionEffect(PotionEffectType.WEAVING, PotionEffect.INFINITE_DURATION, 2, false, false));
+        // zombie.addPotionEffect(new PotionEffect(PotionEffectType.WEAVING, PotionEffect.INFINITE_DURATION, 2, false, false));
         zombie.addPotionEffect(new PotionEffect(PotionEffectType.INFESTED, PotionEffect.INFINITE_DURATION, 6, false, true));
     }
 

@@ -35,7 +35,7 @@ public final class MobEnhancer extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new SpiderControl(this), this);
         getServer().getPluginManager().registerEvents(new HordeControl(this), this);
         getServer().getPluginManager().registerEvents(new BabyZombieControl(), this);
-        getServer().getPluginManager().registerEvents(new IgnitionControl(this), this);
+        getServer().getPluginManager().registerEvents(new DespawnControl(this), this);
 
         registerType(new Default());
         // registerType(new Explosive());

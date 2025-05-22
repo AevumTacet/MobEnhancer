@@ -14,44 +14,44 @@ public class IgnitionControl implements Listener {
 
     public IgnitionControl(JavaPlugin plugin) {
         this.plugin = plugin;
-        iniciarTareaIgnicion();
+        InitIgnitionTask();
     }
 
-    private void iniciarTareaIgnicion() {
+    private void InitIgnitionTask() {
         new BukkitRunnable() {
             @Override
             public void run() {
                 for (World world : plugin.getServer().getWorlds()) {
-                    if (esDiaDespejado(world)) {
-                        procesarEntidades(world);
+                    if (IsSunnyDay(world)) {
+                        processEntities(world);
                     }
                 }
             }
         }.runTaskTimer(plugin, 0L, 20L);
     }
 
-    private boolean esDiaDespejado(World world) {
+    private boolean IsSunnyDay(World world) {
         // Cálculo manual de si es de día (compatible con todas versiones)
         long time = world.getTime();
         boolean esDia = time >= 0 && time < 12300; // 0-12300 ticks = día
         return esDia && !world.isThundering() && !world.hasStorm();
     }
 
-    private void procesarEntidades(World world) {
+    private void processEntities(World world) {
         for (Entity entidad : world.getEntities()) {
-            if (esMobVulnerable(entidad)) {
-                verificarYQuemar((LivingEntity) entidad);
+            if (IsMobVulnerable(entidad)) {
+                verifyandBurn((LivingEntity) entidad);
             }
         }
     }
 
-    private boolean esMobVulnerable(Entity entidad) {
+    private boolean IsMobVulnerable(Entity entidad) {
         return entidad instanceof Zombie || 
                entidad instanceof Skeleton || 
                entidad instanceof Spider;
     }
 
-    private void verificarYQuemar(LivingEntity mob) {
+    private void verifyandBurn(LivingEntity mob) {
         if (mob.isDead() || mob.isInWater()) return;
         
         Location ubicacion = mob.getLocation();
