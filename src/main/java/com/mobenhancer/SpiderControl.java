@@ -22,18 +22,20 @@ import java.util.UUID;
 public class SpiderControl implements Listener {
     private final HashSet<UUID> cooldown = new HashSet<>();
     private static final double SCALE = 1.3;
-    private static final double JUMP_MULTIPLIER = 3.0;
+    private static final double JUMP_MULTIPLIER = 1.5;
     private static final int COOLDOWN_TICKS = 60;
     private final Random random = new Random();
     private static final double HATCHLING_CHANCE = 0.3;
     private final JavaPlugin plugin;
+
     public SpiderControl(JavaPlugin plugin) {
         this.plugin = plugin;
     }
 
     @EventHandler
     public void onSpiderSpawn(CreatureSpawnEvent event) {
-        if (event.getEntityType() != EntityType.SPIDER) return;
+        if (event.getEntityType() != EntityType.SPIDER)
+            return;
 
         LivingEntity spider = (LivingEntity) event.getEntity();
         if (event.getSpawnReason() == CreatureSpawnEvent.SpawnReason.NATURAL) {
@@ -44,9 +46,12 @@ public class SpiderControl implements Listener {
 
     @EventHandler
     public void onSpiderDeath(EntityDeathEvent event) {
-        if (random.nextDouble() > HATCHLING_CHANCE) return;
-        if (!(event.getEntity() instanceof Spider spider)) return;
-        if (!spider.hasMetadata("mature") || !spider.getMetadata("mature").get(0).asBoolean()) return;
+        if (random.nextDouble() > HATCHLING_CHANCE)
+            return;
+        if (!(event.getEntity() instanceof Spider spider))
+            return;
+        if (!spider.hasMetadata("mature") || !spider.getMetadata("mature").get(0).asBoolean())
+            return;
 
         spawnHatchlingParticles(spider.getLocation());
 
@@ -61,8 +66,7 @@ public class SpiderControl implements Listener {
     private void configureSpider(LivingEntity spider, double scale, double jumpMultiplier) {
         spider.getAttribute(Attribute.SCALE).setBaseValue(scale);
         spider.getAttribute(Attribute.JUMP_STRENGTH).setBaseValue(
-            spider.getAttribute(Attribute.JUMP_STRENGTH).getDefaultValue() * jumpMultiplier
-        );
+                spider.getAttribute(Attribute.JUMP_STRENGTH).getDefaultValue() * jumpMultiplier);
         spider.getAttribute(Attribute.FALL_DAMAGE_MULTIPLIER).setBaseValue(-1);
     }
 
@@ -75,17 +79,20 @@ public class SpiderControl implements Listener {
 
     @EventHandler
     public void onSpiderAttack(EntityDamageByEntityEvent event) {
-        if (!(event.getDamager() instanceof Spider spider)) return;
-        if (!(event.getEntity() instanceof LivingEntity target)) return;
-        if (cooldown.contains(spider.getUniqueId())) return;
+        if (!(event.getDamager() instanceof Spider spider))
+            return;
+        if (!(event.getEntity() instanceof LivingEntity target))
+            return;
+        if (cooldown.contains(spider.getUniqueId()))
+            return;
 
         // Colocar telaraña (funcionalidad común para todas las arañas)
         placeCobweb(spider, target);
     }
-    
+
     private void placeCobweb(Spider spider, LivingEntity target) {
         Location cobwebLoc = target.getLocation().add(0, 0.5, 0);
-        
+
         if (cobwebLoc.getBlock().getType().isAir() || cobwebLoc.getBlock().isLiquid()) {
             new BukkitRunnable() {
                 @Override
@@ -98,16 +105,15 @@ public class SpiderControl implements Listener {
     }
 
     private void spawnHatchlingParticles(Location location) {
-        
+
         location.getWorld().spawnParticle(
-            Particle.ITEM_COBWEB,
-            location.add(0, 0.5, 0),
-            20,
-            0.5,
-            0.5,
-            0.5,
-            0
-        );
+                Particle.ITEM_COBWEB,
+                location.add(0, 0.5, 0),
+                20,
+                0.5,
+                0.5,
+                0.5,
+                0);
     }
 
     private void manageCooldown(Spider spider) {
