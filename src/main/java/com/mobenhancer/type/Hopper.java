@@ -22,26 +22,26 @@ import org.bukkit.profile.PlayerTextures;
 public class Hopper implements CustomType {
 
     private static final String Custom_TEXTURE_HASH = "7383a54661e311f94718ec2d4aa587d224553ee924afbb7d40126c66f600dd60";
-  
+
     @SuppressWarnings("deprecation")
     private ItemStack createCustomHead() {
         ItemStack head = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) head.getItemMeta();
-        
+
         PlayerProfile profile = Bukkit.createPlayerProfile(UUID.randomUUID(), "Custom");
         PlayerTextures textures = profile.getTextures();
-        
+
         try {
             URL skinUrl = new URL("https://textures.minecraft.net/texture/" + Custom_TEXTURE_HASH);
             textures.setSkin(skinUrl);
         } catch (MalformedURLException ex) {
             throw new RuntimeException("URL de textura inválida", ex);
         }
-        
+
         profile.setTextures(textures);
         meta.setOwnerProfile(profile);
         head.setItemMeta(meta);
-        
+
         return head;
     }
 
@@ -69,7 +69,8 @@ public class Hopper implements CustomType {
 
     @Override
     public void onAttack(Zombie zombie, EntityDamageByEntityEvent e) {
-        if (e.getEntity() instanceof Player p && p.isBlocking()) return;
+        if (e.getEntity() instanceof Player p && p.isBlocking())
+            return;
         zombie.setVelocity(zombie.getVelocity().multiply(0.25));
     }
 
