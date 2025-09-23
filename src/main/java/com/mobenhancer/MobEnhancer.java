@@ -1,9 +1,11 @@
 package com.mobenhancer;
 
+import com.mobenhancer.cmd.MobSpawn;
 import com.mobenhancer.cmd.Reload;
-import com.mobenhancer.cmd.TypeSpawn;
 import com.mobenhancer.type.skeleton.Dasher;
+import com.mobenhancer.type.skeleton.Grenadier;
 import com.mobenhancer.type.skeleton.Invader;
+import com.mobenhancer.type.skeleton.SpiderJockey;
 import com.mobenhancer.type.zombie.Breaker;
 import com.mobenhancer.type.zombie.Default;
 import com.mobenhancer.type.zombie.Fiery;
@@ -41,7 +43,7 @@ public final class MobEnhancer extends JavaPlugin {
         setupConfig();
 
         getCommand("MobEnhancer").setExecutor(new Reload());
-        getCommand("zombspawn").setExecutor(new TypeSpawn(this));
+        getCommand("mobspawn").setExecutor(new MobSpawn(this));
 
         zombieKey = new NamespacedKey(this, "zombieType");
         skeletonKey = new NamespacedKey(this, "skeletonType");
@@ -75,6 +77,8 @@ public final class MobEnhancer extends JavaPlugin {
         // SKELETON TYPES
         registerSkeletonType(new Invader());
         registerSkeletonType(new Dasher());
+        registerSkeletonType(new Grenadier());
+        registerSkeletonType(new SpiderJockey());
 
     }
 

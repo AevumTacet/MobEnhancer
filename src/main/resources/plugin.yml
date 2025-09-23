@@ -8,7 +8,7 @@ commands:
   MobEnhancer:
     description: Reloads the plugin.
     permission: mobenhancer.reload
-  zombspawn:
+  mobspawn:
     description: Spawns a zombie of a specific type.
     usage: '/<command> <type>'
     permission: mobenhancer.spawn
