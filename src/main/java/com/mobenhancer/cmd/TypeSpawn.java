@@ -1,6 +1,6 @@
 package com.mobenhancer.cmd;
 
-import com.mobenhancer.CustomType;
+import com.mobenhancer.ZombieCustomType;
 import com.mobenhancer.MobEnhancer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -29,23 +29,27 @@ public class TypeSpawn implements CommandExecutor, TabExecutor {
         }
 
         if (strings.length == 0) {
-            commandSender.sendMessage("§eRegistered types: " + instance.getTypes().stream().map(CustomType::getId).collect(Collectors.joining(", ")));
+            commandSender.sendMessage("§eRegistered types: "
+                    + instance.getZombieTypes().stream().map(ZombieCustomType::getId)
+                            .collect(Collectors.joining(", ")));
             return true;
         }
 
-        CustomType type = MobEnhancer.getInstance().getType(strings[0].toLowerCase());
+        ZombieCustomType type = MobEnhancer.getInstance().getZombieType(strings[0].toLowerCase());
         if (type == null) {
             commandSender.sendMessage("§cZombie type not found.");
             return true;
         }
 
         commandSender.sendMessage("§aSpawned " + type.getName() + " (" + type.getId() + ") type zombie.");
-        p.getWorld().spawn(p.getLocation(), Zombie.class, it -> it.getPersistentDataContainer().set(MobEnhancer.key, PersistentDataType.STRING, type.getId()));
+        p.getWorld().spawn(p.getLocation(), Zombie.class,
+                it -> it.getPersistentDataContainer().set(MobEnhancer.zombieKey, PersistentDataType.STRING,
+                        type.getId()));
         return true;
     }
 
     @Override
     public List<String> onTabComplete(CommandSender commandSender, Command command, String s, String[] strings) {
-        return instance.getTypes().stream().map(CustomType::getId).toList();
+        return instance.getZombieTypes().stream().map(ZombieCustomType::getId).toList();
     }
 }
