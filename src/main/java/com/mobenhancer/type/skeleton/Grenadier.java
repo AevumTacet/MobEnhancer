@@ -73,8 +73,8 @@ public class Grenadier implements SkeletonCustomType {
                         return;
                     }
 
-                    // Partículas de fuego y humo
-                    arrow.getWorld().spawnParticle(Particle.SMOKE, arrow.getLocation(), 1, 0.1, 0.1, 0.1, 0.01);
+                    // Partículas de firework
+                    arrow.getWorld().spawnParticle(Particle.FIREWORK, arrow.getLocation(), 1, 0.1, 0.1, 0.1, 0.01);
                 },
                 0L, 2L);
     }
@@ -139,7 +139,7 @@ public class Grenadier implements SkeletonCustomType {
         World world = location.getWorld();
 
         // Sonido de explosión
-        world.playSound(location, Sound.ENTITY_GENERIC_EXPLODE, 1.0f, 0.8f);
+        world.playSound(location, Sound.ENTITY_WIND_CHARGE_WIND_BURST, 1.0f, 0.8f);
 
         // Partículas de explosión
         world.spawnParticle(Particle.EXPLOSION, location, 1, 0, 0, 0, 0);

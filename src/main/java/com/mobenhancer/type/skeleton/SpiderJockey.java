@@ -2,7 +2,6 @@ package com.mobenhancer.type.skeleton;
 
 import com.mobenhancer.SkeletonCustomType;
 import org.bukkit.attribute.Attribute;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Skeleton;
@@ -50,10 +49,6 @@ public class SpiderJockey implements SkeletonCustomType {
             // Montar el esqueleto en la araña
             if (spider.isValid() && skeleton.isValid()) {
                 spider.addPassenger(skeleton);
-
-                // Guardar referencia a la araña en el esqueleto para usarla después
-                spider.setCustomName("SpiderJockeyMount_" + skeleton.getUniqueId());
-                spider.setCustomNameVisible(false);
             }
 
         } catch (Exception ex) {
@@ -87,19 +82,6 @@ public class SpiderJockey implements SkeletonCustomType {
             // Establecer el mismo target para la araña
             if (spider.isValid() && target.isValid()) {
                 spider.setTarget(target);
-            }
-        } else {
-            // Si no está montado, buscar la araña por el nombre personalizado
-            for (Entity entity : skeleton.getNearbyEntities(5, 5, 5)) {
-                if (entity instanceof Spider && entity.getCustomName() != null &&
-                        entity.getCustomName().equals("SpiderJockeyMount_" + skeleton.getUniqueId())) {
-
-                    Spider spider = (Spider) entity;
-                    if (spider.isValid() && target.isValid()) {
-                        spider.setTarget(target);
-                        break;
-                    }
-                }
             }
         }
     }
