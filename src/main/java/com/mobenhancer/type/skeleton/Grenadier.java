@@ -13,8 +13,8 @@ import java.util.Random;
 
 public class Grenadier implements SkeletonCustomType {
 
-    private static final double GRENADE_CHANCE = 0.25; // 30% de probabilidad de granada
-    private static final float EXPLOSION_POWER = 2.0f; // Poder de la explosión (similar a Wind Charge)
+    private static final double GRENADE_CHANCE = 0.25; // 25% de probabilidad de granada
+    private static final float EXPLOSION_POWER = 1.5f; // Poder de la explosión (similar a Wind Charge)
     private static final double KNOCKBACK_STRENGTH = 1.5; // Fuerza del knockback
 
     private final Random random = new Random();
@@ -53,12 +53,11 @@ public class Grenadier implements SkeletonCustomType {
 
     private void customizeGrenadeArrow(Arrow arrow) {
         // Hacer la flecha más visible y especial
-        arrow.setColor(Color.RED); // Flecha roja
         arrow.setGlowing(true); // Brillo para distinguirla
 
         // Sonido de carga/activación
         arrow.getWorld().playSound(arrow.getLocation(), Sound.ENTITY_TNT_PRIMED, 0.5f, 1.5f);
-
+        arrow.getWorld().playSound(arrow.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 1.0f, 1.0f);
         // Partículas durante el vuelo
         startGrenadeParticles(arrow);
     }
@@ -74,7 +73,7 @@ public class Grenadier implements SkeletonCustomType {
                     }
 
                     // Partículas de firework
-                    arrow.getWorld().spawnParticle(Particle.SPIT, arrow.getLocation(), 1, 0.1, 0.1, 0.1, 0.01);
+                    arrow.getWorld().spawnParticle(Particle.SPIT, arrow.getLocation(), 3, 0.1, 0.1, 0.1, 0.01);
                 },
                 0L, 2L);
     }
@@ -110,6 +109,9 @@ public class Grenadier implements SkeletonCustomType {
 
         // 3. Efectos visuales y sonoros adicionales
         playExplosionEffects(impactLocation);
+
+        // 4. Eliminar la flecha
+        arrow.remove();
 
     }
 
