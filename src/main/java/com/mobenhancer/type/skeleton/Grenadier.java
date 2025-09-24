@@ -52,12 +52,17 @@ public class Grenadier implements SkeletonCustomType {
     }
 
     private void customizeGrenadeArrow(Arrow arrow) {
+
+        Vector originalVelocity = arrow.getVelocity();
+        Vector slowerVelocity = originalVelocity.multiply(0.3);
+        arrow.setVelocity(slowerVelocity);
+
         // Hacer la flecha más visible y especial
-        arrow.setColor(Color.RED); // Flecha roja
         arrow.setGlowing(true); // Brillo para distinguirla
 
         // Sonido de carga/activación
-        arrow.getWorld().playSound(arrow.getLocation(), Sound.ENTITY_TNT_PRIMED, 0.5f, 1.5f);
+        arrow.getWorld().playSound(arrow.getLocation(), Sound.ENTITY_TNT_PRIMED, 0.5f, 1.0f);
+        arrow.getWorld().playSound(arrow.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 1.1f, 1f);
 
         // Partículas durante el vuelo
         startGrenadeParticles(arrow);
@@ -73,8 +78,8 @@ public class Grenadier implements SkeletonCustomType {
                         return;
                     }
 
-                    // Partículas de firework
-                    arrow.getWorld().spawnParticle(Particle.FIREWORK, arrow.getLocation(), 1, 0.1, 0.1, 0.1, 0.01);
+                    // Partículas de smoke
+                    arrow.getWorld().spawnParticle(Particle.SPIT, arrow.getLocation(), 2, 0.1, 0.1, 0.1, 0.01);
                 },
                 0L, 2L);
     }
@@ -139,10 +144,9 @@ public class Grenadier implements SkeletonCustomType {
         World world = location.getWorld();
 
         // Sonido de explosión
-        world.playSound(location, Sound.ENTITY_WIND_CHARGE_WIND_BURST, 1.0f, 0.8f);
+        world.playSound(location, Sound.ENTITY_FIREWORK_ROCKET_LARGE_BLAST, 0.7f, 1.0f);
 
         // Partículas de explosión
-        world.spawnParticle(Particle.EXPLOSION, location, 1, 0, 0, 0, 0);
         world.spawnParticle(Particle.SMOKE, location, 15, 1.0, 1.0, 1.0, 0.2);
         world.spawnParticle(Particle.GUST, location, 8, 0.5, 0.5, 0.5, 0.05);
     }

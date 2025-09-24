@@ -49,12 +49,12 @@ public class WindBuster implements ZombieCustomType {
 
     @Override
     public String getId() {
-        return "busted";
+        return "buster";
     }
 
     @Override
     public String getName() {
-        return "Wind Busted";
+        return "WindBuster";
     }
 
     @Override

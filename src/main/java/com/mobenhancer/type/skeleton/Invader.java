@@ -7,6 +7,8 @@ import org.bukkit.entity.*;
 import org.bukkit.event.entity.EntityShootBowEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
 import java.util.HashMap;
@@ -80,9 +82,9 @@ public class Invader implements SkeletonCustomType {
                     }
 
                     arrow.getWorld().spawnParticle(
-                            Particle.SPIT,
+                            Particle.PORTAL,
                             arrow.getLocation(),
-                            2,
+                            4,
                             0.05, 0.05, 0.05,
                             0.01);
                 },
@@ -123,8 +125,6 @@ public class Invader implements SkeletonCustomType {
             }
         }
 
-        // Eliminar la flecha
-        arrow.remove();
     }
 
     private Location findSafeLocationNearby(Location center) {
@@ -192,11 +192,7 @@ public class Invader implements SkeletonCustomType {
 
         // Efectos en la nueva ubicación
         playTeleportEffects(teleportLocation);
-
-        // Opcional: Hacer que el esqueleto ataque inmediatamente si tiene target
-        if (shooter.getTarget() != null) {
-            shooter.attack(shooter.getTarget());
-        }
+        shooter.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, 20, 3, false, true));
     }
 
     private void playTeleportEffects(Location location) {
