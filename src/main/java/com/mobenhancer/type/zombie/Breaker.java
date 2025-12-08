@@ -6,7 +6,6 @@ import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Zombie;
 import org.bukkit.event.entity.CreatureSpawnEvent;
-import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.potion.PotionEffect;
@@ -45,16 +44,16 @@ public class Breaker implements ZombieCustomType {
             Material.TUFF,
             Material.COBBLED_DEEPSLATE,
             Material.COBBLESTONE,
-            // WOODS
-            Material.OAK_WOOD,
-            Material.SPRUCE_WOOD,
-            Material.BIRCH_WOOD,
-            Material.JUNGLE_WOOD,
-            Material.ACACIA_WOOD,
-            Material.DARK_OAK_WOOD,
-            Material.PALE_OAK_WOOD,
-            Material.CHERRY_WOOD,
-            Material.MANGROVE_WOOD,
+            // PLANKS
+            Material.OAK_PLANKS,
+            Material.SPRUCE_PLANKS,
+            Material.BIRCH_PLANKS,
+            Material.JUNGLE_PLANKS,
+            Material.ACACIA_PLANKS,
+            Material.DARK_OAK_PLANKS,
+            Material.PALE_OAK_PLANKS,
+            Material.CHERRY_PLANKS,
+            Material.MANGROVE_PLANKS,
             Material.CRIMSON_PLANKS,
             Material.WARPED_PLANKS,
             Material.BAMBOO_PLANKS,
@@ -168,12 +167,14 @@ public class Breaker implements ZombieCustomType {
 
         ItemStack breakerHead = createBreakerHead();
         // Apariencia identificativa
-        zombie.getEquipment().setItemInOffHand(new ItemStack(Material.IRON_AXE));
-        zombie.getEquipment().setItemInOffHandDropChance(0);
-        zombie.getEquipment().setItemInMainHand(new ItemStack(Material.IRON_SHOVEL));
-        zombie.getEquipment().setItemInMainHandDropChance(0);
         zombie.getEquipment().setHelmet(breakerHead);
         zombie.getEquipment().setHelmetDropChance(0);
+        /*
+         * zombie.getEquipment().setItemInOffHand(new ItemStack(Material.IRON_AXE));
+         * zombie.getEquipment().setItemInOffHandDropChance(0);
+         * zombie.getEquipment().setItemInMainHand(new ItemStack(Material.IRON_SHOVEL));
+         * zombie.getEquipment().setItemInMainHandDropChance(0);
+         */
 
         zombie.addPotionEffect(
                 new PotionEffect(PotionEffectType.RESISTANCE, PotionEffect.INFINITE_DURATION, 2, false, false));
@@ -192,30 +193,125 @@ public class Breaker implements ZombieCustomType {
                 }
 
                 if (zombie.getTarget() instanceof Player
-                        && zombie.getLocation().distance(zombie.getTarget().getLocation()) < 6) {
+                        && zombie.getLocation().distance(zombie.getTarget().getLocation()) < 12) {
                     Player target = (Player) zombie.getTarget();
                     createPath(zombie, target.getLocation());
                 }
             }
-        }.runTaskTimer(com.mobenhancer.MobEnhancer.getInstance(), 0L, 30L); // 1.5 segundos
+        }.runTaskTimer(com.mobenhancer.MobEnhancer.getInstance(), 0L, 40L); // 2 segundos
     }
 
     private void createPath(Zombie breaker, Location targetLoc) {
         Vector direction = targetLoc.toVector().subtract(breaker.getLocation().toVector()).normalize();
 
-        // Verificar 8 bloques hacia adelante
-        for (int i = 1; i <= 8; i++) {
-            Location checkLoc = breaker.getLocation().add(direction.clone().multiply(i));
+        double heightDifference = targetLoc.getY() - breaker.getLocation().getY();
 
-            // Bloque principal y superior
-            Block mainBlock = checkLoc.getBlock();
-            Block upperBlock = checkLoc.clone().add(0, 1, 0).getBlock();
+        if (heightDifference >= 2.0) {
+            createUpwardPath(breaker, direction);
+        } else if (heightDifference <= -2.0) {
+            createDownwardPath(breaker, direction);
+        } else {
+            createNormalPath(breaker, direction);
+        }
+    }
 
-            if (shouldBreak(mainBlock)) {
-                breakBlocks(breaker, mainBlock, upperBlock);
-                break; // Priorizar primer obstáculo
+    private void createNormalPath(Zombie breaker, Vector direction) {
+        Location checkLoc = breaker.getLocation().add(direction);
+        Block mainBlock = checkLoc.clone().add(0, 0.5, 0).getBlock();
+        Block upperBlock = checkLoc.clone().add(0, 1, 0).getBlock();
+
+        if (shouldBreak(mainBlock)) {
+            startBreakingAnimation(breaker, mainBlock, upperBlock);
+        }
+    }
+
+    private void createUpwardPath(Zombie breaker, Vector direction) {
+        Location eyeLevel = breaker.getLocation().add(0, 1.1, 0);
+        Location eyeCheckLoc = eyeLevel.add(direction);
+        Block eyeLevelBlock = eyeCheckLoc.getBlock();
+        Block aboveEyeBlock = eyeCheckLoc.clone().add(0, 1, 0).getBlock();
+
+        Location feetCheckLoc = breaker.getLocation().add(direction);
+        Block feetLevelBlock = feetCheckLoc.getBlock();
+        Block aboveFeetBlock = feetCheckLoc.clone().add(0, 1, 0).getBlock();
+
+        if (shouldBreak(eyeLevelBlock)) {
+            startBreakingAnimation(breaker, eyeLevelBlock, aboveEyeBlock);
+        } else if (shouldBreak(feetLevelBlock)) {
+            startBreakingAnimation(breaker, feetLevelBlock, aboveFeetBlock);
+        }
+    }
+
+    private void createDownwardPath(Zombie breaker, Vector direction) {
+        Location forwardLoc = breaker.getLocation().add(direction);
+        Block forwardBlock = forwardLoc.getBlock();
+
+        Location belowForwardLoc = forwardLoc.clone().add(0, -1, 0);
+        Block belowForwardBlock = belowForwardLoc.getBlock();
+
+        Location belowFeetLoc = breaker.getLocation().add(0, -1, 0);
+        Block belowFeetBlock = belowFeetLoc.getBlock();
+
+        if (shouldBreak(belowForwardBlock)) {
+            startBreakingAnimation(breaker, belowForwardBlock, forwardBlock);
+        } else if (shouldBreak(forwardBlock)) {
+            startBreakingAnimation(breaker, forwardBlock, null);
+        } else if (shouldBreak(belowFeetBlock)) {
+            Location deepCheck = belowFeetLoc.clone().add(0, -2, 0);
+            if (!deepCheck.getBlock().isEmpty()) {
+                startBreakingAnimation(breaker, belowFeetBlock, null);
             }
         }
+    }
+
+    private void startBreakingAnimation(Zombie breaker, Block mainBlock, Block upperBlock) {
+        // 1. Animación de brazos - el zombie golpea con sus herramientas
+        breaker.swingMainHand();
+        breaker.swingOffHand();
+
+        // 2. Partículas de destrucción en los bloques objetivo
+        spawnBreakParticles(mainBlock);
+        if (shouldBreak(upperBlock)) {
+            spawnBreakParticles(upperBlock);
+        }
+
+        // 3. Sonido de "carga" o preparación
+        breaker.getWorld().playSound(
+                breaker.getLocation(),
+                Sound.BLOCK_STONE_HIT,
+                1.0f,
+                0.8f);
+
+        // 4. Programar la destrucción real después de 20 ticks
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (breaker.isValid() &&
+                        (shouldBreak(mainBlock) || (upperBlock != null && shouldBreak(upperBlock)))) {
+                    breakBlocks(breaker, mainBlock, upperBlock);
+                }
+            }
+        }.runTaskLater(com.mobenhancer.MobEnhancer.getInstance(), 20L);
+    }
+
+    private void spawnBreakParticles(Block block) {
+        Location particleLoc = block.getLocation().add(0.5, 0.5, 0.5); // Centro del bloque
+        block.getWorld().spawnParticle(
+                Particle.BLOCK_CRUMBLE,
+                particleLoc,
+                8, // Cantidad de partículas
+                0.3, 0.3, 0.3, // Offset
+                0.1, // Velocidad
+                block.getBlockData() // Datos del bloque para partículas precisas
+        );
+
+        // Partículas adicionales de efecto
+        block.getWorld().spawnParticle(
+                Particle.SMOKE,
+                particleLoc,
+                3,
+                0.2, 0.2, 0.2,
+                0.05);
     }
 
     private boolean shouldBreak(Block block) {
@@ -227,26 +323,56 @@ public class Breaker implements ZombieCustomType {
     private void breakBlocks(Zombie breaker, Block... blocks) {
         for (Block block : blocks) {
             if (shouldBreak(block)) {
+                // Efecto visual de destrucción
                 breaker.getWorld().playEffect(block.getLocation(), Effect.STEP_SOUND, block.getType());
-                breaker.getWorld().playSound(
-                        block.getLocation(),
-                        Sound.BLOCK_STONE_BREAK,
-                        1.5f,
-                        0.7f);
+
+                // Sonido de destrucción específico del material
+                playBreakSound(breaker, block);
+
+                // Destruir el bloque
                 block.setType(Material.AIR);
+
+                // Partículas finales de destrucción
+                block.getWorld().spawnParticle(
+                        Particle.BLOCK_CRUMBLE,
+                        block.getLocation().add(0.5, 0.5, 0.5),
+                        12,
+                        0.3, 0.3, 0.3,
+                        0.1,
+                        block.getType().createBlockData());
             }
         }
     }
 
-    @Override
-    public void onDeath(Zombie zombie, EntityDeathEvent e) {
-        // Efecto de partículas al morir
-        zombie.getWorld().spawnParticle(
-                Particle.SMOKE,
-                zombie.getLocation().add(0, 1, 0),
-                15,
-                0.3, 0.5, 0.3,
-                0.1);
+    private void playBreakSound(Zombie breaker, Block block) {
+        Sound breakSound = Sound.BLOCK_STONE_BREAK;
+        Material blockType = block.getType();
+
+        // Determinar el sonido apropiado según el tipo de bloque
+        if (blockType.name().contains("GLASS")) {
+            breakSound = Sound.BLOCK_GLASS_BREAK;
+        } else if (blockType.name().contains("WOOD") ||
+                blockType.name().contains("FENCE") ||
+                blockType.name().contains("GATE") ||
+                blockType.name().contains("DOOR") ||
+                blockType.name().contains("PLANKS")) {
+            breakSound = Sound.BLOCK_WOOD_BREAK;
+        } else if (blockType.name().contains("WOOL")) {
+            breakSound = Sound.BLOCK_WOOL_BREAK;
+        } else if (blockType.name().contains("STONE") ||
+                blockType.name().contains("CALCITE") ||
+                blockType.name().contains("DEEPSLATE") ||
+                blockType.name().contains("TUFF")) {
+            breakSound = Sound.BLOCK_STONE_BREAK;
+        } else {
+            breakSound = Sound.BLOCK_GRASS_BREAK;
+        }
+
+        breaker.getWorld().playSound(
+                block.getLocation(),
+                breakSound,
+                1.5f,
+                0.7f);
     }
 
     @SuppressWarnings("deprecation")

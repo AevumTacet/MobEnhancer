@@ -132,7 +132,7 @@ public class Hopper implements ZombieCustomType {
 
         // Efectos de partículas y sonido
         zombie.getWorld().spawnParticle(Particle.CLOUD, zombie.getLocation(), 15, 0.3, 0.3, 0.3, 0.1);
-        zombie.getWorld().playSound(zombie.getLocation(), Sound.ENTITY_BAT_TAKEOFF, 0.8f, 1.0f);
+        zombie.getWorld().playSound(zombie.getLocation(), Sound.ENTITY_BAT_TAKEOFF, 0.5f, 1.5f);
 
         // Programar la remoción del conjunto de saltos
         new BukkitRunnable() {

@@ -3,15 +3,12 @@ package com.mobenhancer;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Zombie;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.event.entity.CreatureSpawnEvent;
+import org.bukkit.event.entity.EntitySpawnEvent;
 
 public class BabyZombieControl implements Listener {
 
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
-    public void onBabyZombieSpawn(CreatureSpawnEvent event) {
+    public void onBabyZombieSpawn(EntitySpawnEvent event) {
         // Verificar si es un zombie o zombified piglin
         if (!(event.getEntity() instanceof Zombie))
             return;

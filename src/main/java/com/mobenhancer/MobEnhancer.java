@@ -8,17 +8,12 @@ import com.mobenhancer.type.skeleton.Invader;
 import com.mobenhancer.type.skeleton.SpiderJockey;
 import com.mobenhancer.type.zombie.Breaker;
 import com.mobenhancer.type.zombie.Default;
-import com.mobenhancer.type.zombie.Fiery;
-import com.mobenhancer.type.zombie.Flash;
 import com.mobenhancer.type.zombie.Hopper;
 import com.mobenhancer.type.zombie.Hydra;
 import com.mobenhancer.type.zombie.Infected;
 import com.mobenhancer.type.zombie.Latcher;
 import com.mobenhancer.type.zombie.Pillar;
-import com.mobenhancer.type.zombie.Thief;
 import com.mobenhancer.type.zombie.Thrower;
-import com.mobenhancer.type.zombie.WindBuster;
-
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Skeleton;
 import org.bukkit.entity.Zombie;
@@ -63,16 +58,12 @@ public final class MobEnhancer extends JavaPlugin {
 
         registerType(new Default());
         registerType(new Breaker());
-        registerType(new Fiery(rng));
-        registerType(new Flash());
         registerType(new Hopper());
         registerType(new Infected());
         registerType(new Hydra());
         registerType(new Pillar());
-        registerType(new Thief(rng));
         registerType(new Latcher());
         registerType(new Thrower(rng));
-        registerType(new WindBuster());
 
         // SKELETON TYPES
         registerSkeletonType(new Invader());

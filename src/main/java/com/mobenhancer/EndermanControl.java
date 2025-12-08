@@ -1,12 +1,14 @@
 package com.mobenhancer;
 
-
 import org.bukkit.*;
 import org.bukkit.entity.Enderman;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
+import org.bukkit.inventory.EntityEquipment;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
@@ -21,6 +23,8 @@ public class EndermanControl implements Listener {
     private final Random random = new Random();
     private static final double PULL_RANGE = 5.0;
     private static final double PULL_CHANCE = 0.5;
+    private static final double DISARM_CHANCE = 0.1;
+    private static final double DISARM_RANGE = 8.0;
 
     public EndermanControl(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -30,26 +34,33 @@ public class EndermanControl implements Listener {
     public void onEndermanTarget(EntityTargetLivingEntityEvent event) {
         if (event.getEntity() instanceof Enderman enderman && event.getTarget() != null) {
             trackedEndermen.put(enderman.getUniqueId(), event.getTarget());
-            startPullCheck(enderman);
+            startAbilityCheck(enderman);
         }
     }
 
-    private void startPullCheck(Enderman enderman) {
+    private void startAbilityCheck(Enderman enderman) {
         new BukkitRunnable() {
             public void run() {
                 // Verificar estado y target actual
-                if (!enderman.isValid() || 
-                    !trackedEndermen.containsKey(enderman.getUniqueId()) || 
-                    enderman.getTarget() != trackedEndermen.get(enderman.getUniqueId())) {
-                    
+                if (!enderman.isValid() ||
+                        !trackedEndermen.containsKey(enderman.getUniqueId()) ||
+                        enderman.getTarget() != trackedEndermen.get(enderman.getUniqueId())) {
+
                     trackedEndermen.remove(enderman.getUniqueId());
                     cancel();
                     return;
                 }
 
                 LivingEntity target = trackedEndermen.get(enderman.getUniqueId());
+
+                // Verificar y aplicar habilidad de Pull
                 if (shouldPull(enderman, target)) {
                     applyPull(enderman, target);
+                }
+
+                // Verificar y aplicar habilidad de Disarm
+                if (shouldDisarm(enderman, target)) {
+                    applyDisarm(enderman, target);
                 }
             }
         }.runTaskTimer(plugin, 0L, 20L); // Check cada 1 segundo
@@ -61,7 +72,28 @@ public class EndermanControl implements Listener {
                 enderman.getTarget() != null &&
                 enderman.getTarget() == target &&
                 enderman.hasLineOfSight(target) &&
-               isClearPath(enderman.getEyeLocation(), target.getEyeLocation());
+                isClearPath(enderman.getEyeLocation(), target.getEyeLocation());
+    }
+
+    private boolean shouldDisarm(Enderman enderman, LivingEntity target) {
+        return enderman.getLocation().distance(target.getLocation()) <= DISARM_RANGE &&
+                random.nextDouble() <= DISARM_CHANCE &&
+                enderman.getTarget() != null &&
+                enderman.getTarget() == target &&
+                enderman.hasLineOfSight(target) &&
+                isClearPath(enderman.getEyeLocation(), target.getEyeLocation()) &&
+                hasItemInHand(target);
+    }
+
+    private boolean hasItemInHand(LivingEntity target) {
+        EntityEquipment equipment = target.getEquipment();
+        if (equipment == null)
+            return false;
+
+        ItemStack mainHand = equipment.getItemInMainHand();
+        ItemStack offHand = equipment.getItemInOffHand();
+
+        return !mainHand.getType().isAir() || !offHand.getType().isAir();
     }
 
     private boolean isClearPath(Location start, Location end) {
@@ -71,46 +103,128 @@ public class EndermanControl implements Listener {
 
         for (double d = 0; d < maxDistance; d += 0.5) {
             Location checkPoint = start.clone().add(direction.clone().multiply(d));
-            if (checkPoint.getBlock().getType().isSolid()) return false;
+            if (checkPoint.getBlock().getType().isSolid())
+                return false;
         }
         return true;
     }
 
     private void applyPull(Enderman enderman, LivingEntity target) {
         Vector pullDirection = enderman.getLocation().toVector()
-            .subtract(target.getLocation().toVector())
-            .normalize()
-            .multiply(1.3)
-            .setY(0.5);
+                .subtract(target.getLocation().toVector())
+                .normalize()
+                .multiply(1.3)
+                .setY(0.8);
 
         target.setVelocity(pullDirection);
         playPullEffects(enderman, target);
     }
 
+    private void applyDisarm(Enderman enderman, LivingEntity target) {
+        EntityEquipment equipment = target.getEquipment();
+        if (equipment == null)
+            return;
+
+        ItemStack itemToDisarm = null;
+
+        // Prioridad: mano izquierda primero
+        ItemStack offHandItem = equipment.getItemInOffHand();
+        if (!offHandItem.getType().isAir()) {
+            itemToDisarm = offHandItem.clone();
+            equipment.setItemInOffHand(new ItemStack(Material.AIR));
+        }
+        // Si no hay item en mano izquierda, usar mano derecha
+        else {
+            ItemStack mainHandItem = equipment.getItemInMainHand();
+            if (!mainHandItem.getType().isAir()) {
+                itemToDisarm = mainHandItem.clone();
+                equipment.setItemInMainHand(new ItemStack(Material.AIR));
+            }
+        }
+
+        // Si se encontró un item para desarmar
+        if (itemToDisarm != null) {
+            // Soltar el item en el mundo
+            Item droppedItem = target.getWorld().dropItem(target.getLocation().add(0, 1, 0), itemToDisarm);
+            droppedItem.setPickupDelay(40); // 2 segundos de delay para recoger
+
+            // Calcular dirección del lanzamiento (desde el target hacia el enderman)
+            Vector throwDirection = enderman.getLocation().toVector()
+                    .subtract(target.getLocation().toVector())
+                    .normalize()
+                    .multiply(1.1)
+                    .setY(0.6);
+
+            droppedItem.setVelocity(throwDirection);
+            playDisarmEffects(enderman, target, droppedItem);
+        }
+    }
+
     private void playPullEffects(Enderman enderman, LivingEntity target) {
         // Efectos en el objetivo
         target.getWorld().spawnParticle(
-            Particle.REVERSE_PORTAL,
-            target.getLocation().add(0, 1, 0),
-            25,
-            0.5, 0.5, 0.5,
-            0.1
-        );
-        
+                Particle.REVERSE_PORTAL,
+                target.getLocation().add(0, 1, 0),
+                25,
+                0.5, 0.5, 0.5,
+                0.1);
+
         target.getWorld().playSound(
-            target.getLocation(),
-            Sound.ENTITY_ENDERMAN_TELEPORT,
-            1.2f,
-            0.7f
-        );
+                target.getLocation(),
+                Sound.ENTITY_ENDERMAN_TELEPORT,
+                1.2f,
+                0.7f);
 
         // Efectos en el Enderman
         enderman.getWorld().spawnParticle(
-            Particle.ELECTRIC_SPARK,
-            enderman.getEyeLocation(),
-            10,
-            0.3, 0.3, 0.3,
-            0.05
-        );
+                Particle.ELECTRIC_SPARK,
+                enderman.getEyeLocation(),
+                10,
+                0.3, 0.3, 0.3,
+                0.05);
+    }
+
+    private void playDisarmEffects(Enderman enderman, LivingEntity target, Item droppedItem) {
+        // Efectos en el objetivo (desarme)
+        target.getWorld().spawnParticle(
+                Particle.REVERSE_PORTAL,
+                target.getLocation().add(0, 1, 0),
+                15,
+                0.3, 0.5, 0.3,
+                0.1);
+
+        target.getWorld().playSound(
+                target.getLocation(),
+                Sound.ENTITY_ENDERMAN_SCREAM,
+                1.0f,
+                1.2f);
+
+        // Efectos en el item lanzado
+        new BukkitRunnable() {
+            int ticks = 0;
+
+            public void run() {
+                if (!droppedItem.isValid() || ticks > 20) { // 1 segundo máximo
+                    cancel();
+                    return;
+                }
+
+                droppedItem.getWorld().spawnParticle(
+                        Particle.ELECTRIC_SPARK,
+                        droppedItem.getLocation(),
+                        3,
+                        0.1, 0.1, 0.1,
+                        0.02);
+                ticks++;
+            }
+        }.runTaskTimer(plugin, 0L, 2L); // Efectos cada 2 ticks
+
+        // Efectos en el Enderman
+        enderman.getWorld().spawnParticle(
+                Particle.ENCHANT,
+                enderman.getEyeLocation(),
+                8,
+                0.2, 0.2, 0.2,
+                0.1);
     }
 }

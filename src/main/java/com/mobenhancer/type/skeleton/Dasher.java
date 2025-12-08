@@ -10,8 +10,8 @@ import java.util.Random;
 
 public class Dasher implements SkeletonCustomType {
 
-    private static final double DASH_CHANCE = 0.75; // 75% de probabilidad de dash
-    private static final int MAX_DASH_DISTANCE = 3; // Máximo 3 bloques de distancia
+    private static final double DASH_CHANCE = 0.4; // 75% de probabilidad de dash
+    private static final int MAX_DASH_DISTANCE = 2; // Máximo 3 bloques de distancia
     private final Random random = new Random();
 
     @Override
