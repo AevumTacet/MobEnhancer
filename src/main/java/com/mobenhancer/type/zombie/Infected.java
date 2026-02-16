@@ -22,7 +22,7 @@ import org.bukkit.profile.PlayerTextures;
 
 public class Infected implements ZombieCustomType {
 
-    private static final String Custom_TEXTURE_HASH = "ddbc98f98e71537e2b66317a32731b924a9e4de6963f8fd75f94a2208740cb3c";
+    private static final String Custom_TEXTURE_HASH = "8427435f1ecde67688cd7baad9ef0fd5bb384976e8142e644f98ce74d5d026b6";
 
     @SuppressWarnings("deprecation")
     private ItemStack createCustomHead() {

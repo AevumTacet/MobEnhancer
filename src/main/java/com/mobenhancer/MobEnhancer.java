@@ -1,10 +1,12 @@
 package com.mobenhancer;
 
+import com.mobenhancer.boss.BossSpawnManager;
 import com.mobenhancer.cmd.MobSpawn;
 import com.mobenhancer.cmd.Reload;
 import com.mobenhancer.type.skeleton.Dasher;
 import com.mobenhancer.type.skeleton.Grenadier;
 import com.mobenhancer.type.skeleton.Invader;
+import com.mobenhancer.type.skeleton.Skeleton_default;
 import com.mobenhancer.type.skeleton.SpiderJockey;
 import com.mobenhancer.type.zombie.Breaker;
 import com.mobenhancer.type.zombie.Default;
@@ -13,7 +15,6 @@ import com.mobenhancer.type.zombie.Hydra;
 import com.mobenhancer.type.zombie.Infected;
 import com.mobenhancer.type.zombie.Latcher;
 import com.mobenhancer.type.zombie.Pillar;
-import com.mobenhancer.type.zombie.Thrower;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Skeleton;
 import org.bukkit.entity.Zombie;
@@ -28,7 +29,9 @@ import java.util.Random;
 public final class MobEnhancer extends JavaPlugin {
     public static NamespacedKey zombieKey;
     public static NamespacedKey skeletonKey;
+    public BossSpawnManager getBossSpawnManager() { return bossSpawnManager; }
 
+    private BossSpawnManager bossSpawnManager;
     private List<ZombieCustomType> zombieTypes = List.of();
     private List<SkeletonCustomType> skeletonTypes = List.of();
     private final Random rng = new Random();
@@ -63,14 +66,15 @@ public final class MobEnhancer extends JavaPlugin {
         registerType(new Hydra());
         registerType(new Pillar());
         registerType(new Latcher());
-        registerType(new Thrower(rng));
 
         // SKELETON TYPES
+        registerSkeletonType(new Skeleton_default());
         registerSkeletonType(new Invader());
         registerSkeletonType(new Dasher());
         registerSkeletonType(new Grenadier());
         registerSkeletonType(new SpiderJockey());
 
+        bossSpawnManager = new BossSpawnManager(this);
     }
 
     public static MobEnhancer getInstance() {
@@ -81,6 +85,15 @@ public final class MobEnhancer extends JavaPlugin {
     public void setupConfig() {
         saveDefaultConfig();
         getConfig().options().copyDefaults(true);
+        if (!getConfig().contains("boss-spawn")) {
+            getConfig().set("boss-spawn.enabled", true);
+            getConfig().set("boss-spawn.min-players", 2);
+            getConfig().set("boss-spawn.chance-per-second", 0.001);
+            getConfig().set("boss-spawn.max-concurrent", 1);
+            getConfig().set("boss-spawn.distance-min", 100);
+            getConfig().set("boss-spawn.distance-max", 200);
+            getConfig().set("boss-spawn.broadcast-message", "&cA abomination is about to appear at X: %x Y: %y Z: %z!");
+        }
         saveConfig();
     }
 
@@ -135,4 +148,5 @@ public final class MobEnhancer extends JavaPlugin {
     public SkeletonCustomType getRandomSkeletonType() {
         return skeletonTypes.get(rng.nextInt(skeletonTypes.size()));
     }
+
 }

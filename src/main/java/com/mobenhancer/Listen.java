@@ -1,11 +1,14 @@
 package com.mobenhancer;
 
+import org.bukkit.Bukkit;
+import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.*;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.projectiles.ProjectileSource;
 
 import java.util.*;
@@ -24,47 +27,55 @@ public class Listen implements Listener {
 
     @EventHandler
     public void spawn(CreatureSpawnEvent e) {
-        Entity entity = e.getEntity();
-        World world = entity.getWorld();
+        Bukkit.getScheduler().runTaskLater(instance, () -> {
+            Entity entity = e.getEntity();
+            World world = entity.getWorld();
 
-        // Lógica existente de reemplazo
-        if ((instance.getConfig().getBoolean("endSpawn") && world.getEnvironment() == World.Environment.THE_END
-                && entity.getType() == EntityType.ENDERMAN && random.nextInt(8) == 0)
-                || (instance.getConfig().getBoolean("replaceHostiles") && REPLACEABLE.contains(entity.getType()))) {
-            world.spawnEntity(entity.getLocation(), EntityType.ZOMBIE);
-            e.setCancelled(true);
-            return;
-        }
-
-        // Manejar Zombies (existente)
-        if (entity instanceof Zombie zombie) {
-            ZombieCustomType type = instance.getZombieType(zombie);
-            if (type == null)
-                type = instance.getRandomZombieType();
-            instance.setZombieType(zombie, type);
-
-            type.onSpawn(zombie, e);
-            if (instance.getConfig().getBoolean("displayType") && !type.getName().isEmpty()) {
-                zombie.setCustomName(type.getName());
+            // Lógica existente de reemplazo
+            if ((instance.getConfig().getBoolean("endSpawn") && world.getEnvironment() == World.Environment.THE_END
+                    && entity.getType() == EntityType.ENDERMAN && random.nextInt(8) == 0)
+                    || (instance.getConfig().getBoolean("replaceHostiles") && REPLACEABLE.contains(entity.getType()))) {
+                world.spawnEntity(entity.getLocation(), EntityType.ZOMBIE);
+                e.setCancelled(true);
+                return;
             }
 
-            // Zombified Piglin
-            if (instance.getConfig().getBoolean("zombifiedPiglinAttack") && zombie instanceof PigZombie pigZombie) {
-                pigZombie.setAngry(true);
-            }
-        }
-        // Manejar Skeletons (nuevo)
-        else if (entity instanceof Skeleton skeleton) {
-            SkeletonCustomType type = instance.getSkeletonType(skeleton);
-            if (type == null)
-                type = instance.getRandomSkeletonType();
-            instance.setSkeletonType(skeleton, type);
+            // Manejar Zombies
+            if (entity instanceof Zombie zombie) {
+                // Si ya es un boss, no asignar tipo
+                NamespacedKey bossKey = new NamespacedKey(instance, "boss_type");
+                if (zombie.getPersistentDataContainer().has(bossKey, PersistentDataType.STRING)) {
+                    return; // Salir, no hacer nada
+                }
 
-            type.onSpawn(skeleton, e);
-            if (instance.getConfig().getBoolean("displayType") && !type.getName().isEmpty()) {
-                skeleton.setCustomName(type.getName());
+                ZombieCustomType type = instance.getZombieType(zombie);
+                if (type == null)
+                    type = instance.getRandomZombieType();
+                instance.setZombieType(zombie, type);
+
+                type.onSpawn(zombie, e);
+                if (instance.getConfig().getBoolean("displayType") && !type.getName().isEmpty()) {
+                    zombie.setCustomName(type.getName());
+                }
+
+                // Zombified Piglin
+                /* if (instance.getConfig().getBoolean("zombifiedPiglinAttack") && zombie instanceof PigZombie pigZombie) {
+                    pigZombie.setAngry(true);
+                } */
             }
-        }
+            // Manejar Skeletons (nuevo)
+            else if (entity instanceof Skeleton skeleton) {
+                SkeletonCustomType type = instance.getSkeletonType(skeleton);
+                if (type == null)
+                    type = instance.getRandomSkeletonType();
+                instance.setSkeletonType(skeleton, type);
+
+                type.onSpawn(skeleton, e);
+                if (instance.getConfig().getBoolean("displayType") && !type.getName().isEmpty()) {
+                    skeleton.setCustomName(type.getName());
+                }
+            }
+        }, 2L); // Delay de 2 ticks
     }
 
     // Eventos para Zombies (mantener existente)

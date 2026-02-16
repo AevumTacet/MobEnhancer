@@ -7,6 +7,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import java.util.*;
@@ -55,6 +56,9 @@ public class DespawnControl implements Listener {
     }
 
     private boolean shouldDespawn(Entity entity) {
+        if (entity.getPersistentDataContainer().has(new NamespacedKey(plugin, "boss_type"), PersistentDataType.STRING)) {
+            return false;
+        }
         if (!(entity instanceof Mob)) return false;
         Mob mob = (Mob) entity;
         
@@ -62,6 +66,8 @@ public class DespawnControl implements Listener {
             !mob.isDead() &&
             mob.getCustomName() == null &&
             mob.getTarget() == null;
+
+        
     }
 
     private void startDespawnProcess(LivingEntity mob) {

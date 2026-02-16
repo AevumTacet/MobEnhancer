@@ -1,10 +1,12 @@
 package com.mobenhancer;
 
+import org.bukkit.NamespacedKey;
 import org.bukkit.Sound;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -51,10 +53,13 @@ public class HordeControl implements Listener {
     }
 
     private void alertNearbyMobs(Zombie caller, Player target) {
+        NamespacedKey bossKey = new NamespacedKey(plugin, "boss_type");
         caller.getWorld().getNearbyEntities(caller.getLocation(), CALL_RADIUS, CALL_RADIUS / 2, CALL_RADIUS)
                 .stream()
-                .filter(e -> e instanceof Zombie) // Solo zombies
+                .filter(e -> e instanceof Zombie)
                 .map(e -> (Zombie) e)
+                // Excluir zombies que sean bosses (tengan el tag "boss_type")
+                .filter(zombie -> !zombie.getPersistentDataContainer().has(bossKey, PersistentDataType.STRING))
                 .forEach(zombie -> {
                     if (zombie.getTarget() == null ||
                             (zombie.getTarget() instanceof Player &&
