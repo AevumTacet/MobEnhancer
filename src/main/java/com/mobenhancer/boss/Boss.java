@@ -88,26 +88,43 @@ public abstract class Boss {
         }
     }
 
-    /**
-     * Añade la bossbar a todos los jugadores dentro de un radio (ej. 50 bloques).
-     */
     protected void updateBossBarViewers(double radius) {
-        if (bossBar == null || entity == null) return;
-        // Quitar jugadores que ya no estén cerca
-        bossBar.getPlayers().forEach(p -> {
-            if (p.getLocation().distance(entity.getLocation()) > radius) {
+        if (bossBar == null || entity == null || !entity.isValid() || entity.isDead()) return;
+
+        Location bossLoc = entity.getLocation();
+
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            if (!p.getWorld().equals(bossLoc.getWorld())) {
+                bossBar.removePlayer(p);
+                continue;
+            }
+            // distanceSquared evita la raíz cuadrada, más eficiente
+            boolean inRange = p.getLocation().distanceSquared(bossLoc) <= radius * radius;
+            if (inRange) {
+                bossBar.addPlayer(p); // idempotente: si ya está, no hace nada
+            } else {
                 bossBar.removePlayer(p);
             }
-        });
-        // Añadir nuevos jugadores cercanos
-        entity.getNearbyEntities(radius, radius, radius).stream()
-                .filter(e -> e instanceof Player)
-                .map(e -> (Player) e)
-                .forEach(p -> {
-                    if (!bossBar.getPlayers().contains(p)) {
-                        bossBar.addPlayer(p);
-                    }
-                });
+        }
+    }
+
+    /**
+     * Comprueba si un jugador específico debe ver la bossbar y actúa en consecuencia.
+     * Útil tras respawn o cambio de mundo.
+     */
+    public void checkBossBarForPlayer(Player player, double radius) {
+        if (bossBar == null || entity == null || entity.isDead()) return;
+        if (!player.getWorld().equals(entity.getWorld())) {
+            bossBar.removePlayer(player);
+            return;
+        }
+
+        boolean inRange = player.getLocation().distanceSquared(entity.getLocation()) <= radius * radius;
+        if (inRange) {
+            bossBar.addPlayer(player);
+        } else {
+            bossBar.removePlayer(player);
+        }
     }
 
     protected void markAsBoss(LivingEntity e) {

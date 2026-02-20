@@ -1,12 +1,16 @@
 package com.mobenhancer.boss;
 
+import org.bukkit.Bukkit;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityShootBowEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Map;
 import java.util.UUID;
@@ -14,8 +18,11 @@ import java.util.UUID;
 public class BossListener implements Listener {
     private final Map<UUID, Boss> activeBosses;
 
-    public BossListener(Map<UUID, Boss> activeBosses) {
+    private final JavaPlugin plugin;
+
+    public BossListener(Map<UUID, Boss> activeBosses, JavaPlugin plugin) {
         this.activeBosses = activeBosses;
+        this.plugin = plugin;
     }
 
     @EventHandler
@@ -68,5 +75,16 @@ public class BossListener implements Listener {
         if (boss != null) {
             boss.onShootBow(event);
         }
+    }
+
+    @EventHandler
+    public void onPlayerRespawn(PlayerRespawnEvent event) {
+        Player player = event.getPlayer();
+
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            for (Boss boss : activeBosses.values()) {
+                boss.checkBossBarForPlayer(player, 50.0);
+            }
+        });
     }
 }

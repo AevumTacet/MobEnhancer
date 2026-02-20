@@ -47,11 +47,23 @@ public class MobSpawn implements TabExecutor {
             case "skeleton":
                 return spawnSkeleton(player, args[1].toLowerCase());
             case "boss":
+                if (args[1].equalsIgnoreCase("event")) {
+                    return spawnBossEvent(player, args.length >= 3 ? args[2].toLowerCase() : null);
+                }
                 return spawnBoss(player, args[1].toLowerCase());
             default:
                 sender.sendMessage("§cUnknown mob type: " + mobType);
                 return true;
         }
+    }
+
+    private boolean spawnBossEvent(Player player, String bossId) {
+        if (plugin.getBossSpawnManager() == null) {
+            player.sendMessage("§cBoss system is not enabled.");
+            return true;
+        }
+        plugin.getBossSpawnManager().forceSpawnEvent(player, bossId);
+        return true;
     }
 
     private void showHelp(CommandSender sender) {
@@ -151,10 +163,17 @@ public class MobSpawn implements TabExecutor {
                             .collect(Collectors.toList()));
                     break;
                 case "boss":
+                    completions.add("event"); // siempre disponible
                     if (plugin.getBossSpawnManager() != null) {
                         completions.addAll(plugin.getBossSpawnManager().getAvailableBossIds());
                     }
                     break;
+                
+            }
+        } else if (args.length == 3 && args[0].equalsIgnoreCase("boss") 
+                                    && args[1].equalsIgnoreCase("event")) {
+            if (plugin.getBossSpawnManager() != null) {
+                completions.addAll(plugin.getBossSpawnManager().getAvailableBossIds());
             }
         }
 

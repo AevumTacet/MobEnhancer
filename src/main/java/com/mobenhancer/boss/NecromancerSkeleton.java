@@ -44,7 +44,7 @@ public class NecromancerSkeleton extends Boss {
     private static final double LIFESTEAL_AURA_DAMAGE_PER_SECOND = 10.0;
 
     // Textura para la cabeza personalizada
-    private static final String SKULL_TEXTURE = "170991b5525f60cab1d975509d3f969634a2afcc07ed311010a6078dde452e6d";
+    private static final String SKULL_TEXTURE = "c34f534f6cb88d5272dfe8601c261651b4990e6605d718d09072a42c2a41843d";
 
     // Estado
     private SkeletonHorse horse;
@@ -58,7 +58,7 @@ public class NecromancerSkeleton extends Boss {
     private long lastSummonTime = 0;
 
     public NecromancerSkeleton(JavaPlugin plugin) {
-        super(plugin, "necromancer_skeleton", "Necromancer Skeleton", MAX_HEALTH);
+        super(plugin, "necromancer_skeleton", "Lich Skeleton", MAX_HEALTH);
     }
 
     @SuppressWarnings("deprecation")
@@ -146,56 +146,112 @@ public class NecromancerSkeleton extends Boss {
 
     private void startTicking() {
         new BukkitRunnable() {
+            private int deadCheckCounter = 0;
+
             @Override
             public void run() {
-                if (!active || entity == null || entity.isDead()) {
+                // Si el boss no está activo, cancelar sin dudas
+                if (!active) {
                     cancel();
                     return;
                 }
+
+                // Si la entidad es null o inválida, dar 3 segundos de gracia
+                // antes de cancelar, por si es un estado transitorio del servidor
+                if (entity == null || !entity.isValid()) {
+                    deadCheckCounter++;
+                    if (deadCheckCounter >= 3) {
+                        cancel();
+                    }
+                    return;
+                }
+
+                // Si la entidad está genuinamente muerta (ya procesó su EntityDeathEvent),
+                // cancelar definitivamente
+                if (entity.isDead()) {
+                    cancel();
+                    return;
+                }
+
+                // Todo bien: resetear contador y ejecutar lógica
+                deadCheckCounter = 0;
                 tick();
             }
-        }.runTaskTimer(plugin, 0L, 20L); // cada segundo
+        }.runTaskTimer(plugin, 20L, 20L); // delay inicial de 1 segundo para que spawn() termine
     }
 
     @Override
     public void tick() {
-        if (!active || entity == null) return;
+        if (!active || entity == null || entity.isDead()) return;
 
         updateBossBar();
-        updateBossBarViewers(50);
+        updateBossBarViewers(50.0);
 
-        // Verificar que sigue montado
-        if (entity.getVehicle() == null || !entity.getVehicle().equals(horse)) {
-            if (horse.isValid() && !horse.isDead()) {
+        // Verificar que el necromancer sigue montado en el caballo
+        if (horse != null && horse.isValid() && !horse.isDead()) {
+            if (entity.getVehicle() == null || !entity.getVehicle().equals(horse)) {
                 horse.addPassenger(entity);
             }
-        }
-
-        // Sincronizar el objetivo del caballo con el del necromancer
-        LivingEntity target = ((Mob) entity).getTarget();
-        if (horse != null && !horse.isDead()) {
+            // Sincronizar objetivo del caballo con el del necromancer
+            LivingEntity target = ((Mob) entity).getTarget();
             horse.setTarget(target);
         }
 
         long now = System.currentTimeMillis();
+        LivingEntity target = ((Mob) entity).getTarget();
 
         // --- Proyectil ---
-        if (target != null && (now - lastProjectileTime) >= PROJECTILE_COOLDOWN_SECONDS * 1000L) {
-            if (random.nextDouble() < PROJECTILE_CHANCE) {
-                shootProjectile(target);
-                lastProjectileTime = now;
+        if (target != null && target.isValid() && !target.isDead()) {
+            if ((now - lastProjectileTime) >= PROJECTILE_COOLDOWN_SECONDS * 1000L) {
+                if (random.nextDouble() < PROJECTILE_CHANCE) {
+                    shootProjectile(target);
+                    lastProjectileTime = now;
+                }
+            }
+
+            // --- Invocación ---
+            if ((now - lastSummonTime) >= SUMMON_COOLDOWN_SECONDS * 1000L) {
+                if (random.nextDouble() < SUMMON_CHANCE) {
+                    summonFamiliars(target);
+                    lastSummonTime = now;
+                }
             }
         }
 
-        // --- Invocación ---
-        if (target != null && (now - lastSummonTime) >= SUMMON_COOLDOWN_SECONDS * 1000L) {
-            if (random.nextDouble() < SUMMON_CHANCE) {
-                summonFamiliars(target);
-                lastSummonTime = now;
-            }
-        }
-
+        // Limpiar familiares muertos o inválidos
         familiars.removeIf(fam -> fam == null || fam.isDead() || !fam.isValid());
+    }
+
+    private void startConstantParticles() {
+        new BukkitRunnable() {
+            private int deadCheckCounter = 0;
+
+            @Override
+            public void run() {
+                if (!active) {
+                    cancel();
+                    return;
+                }
+
+                if (entity == null || !entity.isValid()) {
+                    deadCheckCounter++;
+                    if (deadCheckCounter >= 3) cancel();
+                    return;
+                }
+
+                if (entity.isDead()) {
+                    cancel();
+                    return;
+                }
+
+                deadCheckCounter = 0;
+                entity.getWorld().spawnParticle(
+                        Particle.CRIMSON_SPORE,
+                        entity.getLocation().add(0, 2, 0),
+                        8, 0.5, 0.5, 0.5, 0
+                );
+            }
+        }.runTaskTimer(plugin, 20L, 10L);
     }
 
     // ================== PROYECTIL ==================
@@ -249,17 +305,19 @@ public class NecromancerSkeleton extends Boss {
         if (!snowball.getPersistentDataContainer().has(key, PersistentDataType.BYTE)) return;
 
         if (event.getHitEntity() instanceof LivingEntity target) {
-            double damage = PROJECTILE_DAMAGE * (0.6 + 0.4 * random.nextDouble()); // entre 3 y 5
+            double damage = PROJECTILE_DAMAGE * (0.6 + 0.4 * random.nextDouble());
             target.damage(damage, entity);
 
-            // Transferir vida al necromancer
             double newHealth = Math.min(entity.getHealth() + damage, MAX_HEALTH);
             entity.setHealth(newHealth);
             updateBossBar();
 
-            // Efectos
+            // Efectos existentes
             target.getWorld().spawnParticle(Particle.SOUL, target.getLocation().add(0, 1, 0), 10, 0.3, 0.3, 0.3, 0.1);
             entity.getWorld().playSound(entity.getLocation(), Sound.ENTITY_WITHER_SHOOT, 1.0f, 1.2f);
+
+            // Haz de robo de vida
+            drawLifestealBeam(target, 12); // ← más corto porque el proyectil es puntual
         }
 
         snowball.remove();
@@ -303,7 +361,7 @@ public class NecromancerSkeleton extends Boss {
         // plugin.getLogger().info("[NecromancerSkeleton] Familiares invocados: " + spawned + "/" + count);
     }
 
-    private static final String FAMILIAR_SKULL_TEXTURE = "53d5a20c3061de0d9d8431c9b92d9dc3367839634a951303aef1e5d5973c4ba1";
+    private static final String FAMILIAR_SKULL_TEXTURE = "54e5a2321e639fdc9d42434aff3d7c674b4a88b2e45ed9f03723befecc9a3e7c";
 
     @SuppressWarnings("deprecation")
     private ItemStack createFamiliarHead() {
@@ -330,7 +388,7 @@ public class NecromancerSkeleton extends Boss {
     private Skeleton spawnFamiliar(Location spawnLoc, LivingEntity target) {
         Skeleton familiar = (Skeleton) spawnLoc.getWorld().spawnEntity(spawnLoc, EntityType.SKELETON);
         familiar.setCustomName("§5Familiar");
-        familiar.setCustomNameVisible(true);
+        familiar.setCustomNameVisible(false);
         familiar.getAttribute(Attribute.MAX_HEALTH).setBaseValue(20.0);
         familiar.setHealth(20.0);
         familiar.getAttribute(Attribute.SCALE).setBaseValue(0.75); // Tamaño reducido
@@ -467,16 +525,18 @@ public class NecromancerSkeleton extends Boss {
 
                 double totalDamage = 0;
                 for (Entity e : world.getNearbyEntities(center, LIFESTEAL_AURA_RADIUS, 4, LIFESTEAL_AURA_RADIUS)) {
-                    if (e instanceof Player) {
-                        Player p = (Player) e;
+                    if (e instanceof Player p) {
                         double damage = Math.min(p.getHealth(), LIFESTEAL_AURA_DAMAGE_PER_SECOND);
                         p.damage(damage, entity);
                         totalDamage += damage;
+                        drawLifestealBeam(p, 15); // ← haz de ~0.75 segundos por jugador dañado
+
                     } else if (e instanceof Mob && !familiars.contains(e) && !e.equals(horse)) {
                         LivingEntity mob = (LivingEntity) e;
                         double damage = Math.min(mob.getHealth(), LIFESTEAL_AURA_DAMAGE_PER_SECOND);
                         mob.damage(damage, entity);
                         totalDamage += damage;
+                        drawLifestealBeam(mob, 15); // ← haz de ~0.75 segundos por mob dañado
                     }
                 }
 
@@ -508,23 +568,95 @@ public class NecromancerSkeleton extends Boss {
         }
     }
 
-    private void startConstantParticles() {
+    /**
+     * Dibuja un haz animado de partículas desde la víctima hacia el Necromancer,
+     * simbolizando la transferencia de vida.
+     *
+     * @param victim   La entidad a la que se le está robando vida
+     * @param duration Duración del haz en ticks (20 = 1 segundo)
+     */
+    private void drawLifestealBeam(LivingEntity victim, int duration) {
         new BukkitRunnable() {
+            int ticks = 0;
+
             @Override
             public void run() {
-                if (!active || entity == null || entity.isDead()) {
+                // Cancelar si alguna de las dos entidades ya no es válida
+                if (ticks >= duration || !active
+                        || entity == null || entity.isDead()
+                        || victim == null || victim.isDead()) {
                     cancel();
                     return;
                 }
+
+                Location from = victim.getLocation().add(0, 1, 0);   // pecho de la víctima
+                Location to   = entity.getLocation().add(0, 1.5, 0); // pecho del necromancer
+
+                double distance = from.distance(to);
+                if (distance < 0.5) {
+                    cancel();
+                    return;
+                }
+
+                // Vector unitario de víctima → necromancer
+                Vector direction = to.toVector().subtract(from.toVector()).normalize();
+
+                // Número de puntos proporcional a la distancia (1 punto por bloque aprox.)
+                int points = (int) (distance * 4);
+
+                for (int i = 0; i < points; i++) {
+                    double t = (double) i / points; // 0.0 → 1.0
+
+                    // Posición base interpolada
+                    Location particleLoc = from.clone().add(direction.clone().multiply(t * distance));
+
+                    // Ondulación sinusoidal perpendicular para que el haz tenga "vida"
+                    double wave = Math.sin(t * Math.PI * 4 + ticks * 0.6) * 0.15;
+                    Vector perp = getPerpendicular(direction).multiply(wave);
+                    particleLoc.add(perp);
+
+                    // Color interpolado: rojo intenso en la víctima → violeta en el necromancer
+                    int red   = (int) (255 * (1 - t) + 120 * t);
+                    int green = 0;
+                    int blue  = (int) (0   * (1 - t) + 220 * t);
+
+                    World world = particleLoc.getWorld();
+                    world.spawnParticle(
+                            Particle.DUST,
+                            particleLoc,
+                            1, 0, 0, 0, 0,
+                            new Particle.DustOptions(Color.fromRGB(red, green, blue), 1.2f)
+                    );
+
+                    // Cada 4 puntos, añadir una partícula SOUL más tenue para profundidad
+                    if (i % 4 == 0) {
+                        world.spawnParticle(Particle.SOUL, particleLoc, 1, 0.05, 0.05, 0.05, 0.001);
+                    }
+                }
+
+                // Destello en el necromancer al recibir la vida
                 entity.getWorld().spawnParticle(
-                        Particle.CRIMSON_SPORE,
-                        entity.getLocation().add(0, 2, 0),
-                        8, 0.5, 0.5, 0.5, 0
+                        Particle.DUST,
+                        entity.getLocation().add(0, 1.5, 0),
+                        3, 0.1, 0.1, 0.1, 0,
+                        new Particle.DustOptions(Color.fromRGB(120, 0, 220), 1.5f)
                 );
+
+                ticks++;
             }
-        }.runTaskTimer(plugin, 0L, 10L);
+        }.runTaskTimer(plugin, 0L, 1L); // cada tick para máxima fluidez
     }
 
+    /**
+     * Calcula un vector perpendicular al dado para la ondulación del haz.
+     * Evita el caso degenerado cuando la dirección es paralela al eje Y.
+     */
+    private Vector getPerpendicular(Vector direction) {
+        Vector ref = (Math.abs(direction.getY()) < 0.9)
+                ? new Vector(0, 1, 0)   // caso normal: usar eje Y como referencia
+                : new Vector(1, 0, 0);  // caso vertical: usar eje X
+        return direction.clone().crossProduct(ref).normalize();
+    }
     // ================== EVENTOS DE DAÑO ==================
 
     @Override

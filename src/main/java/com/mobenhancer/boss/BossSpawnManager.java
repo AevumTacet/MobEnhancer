@@ -29,7 +29,7 @@ public class BossSpawnManager implements Listener {
         registerBosses();
         startSpawningTask();
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
-        plugin.getServer().getPluginManager().registerEvents(new BossListener(activeBosses), plugin);
+        plugin.getServer().getPluginManager().registerEvents(new BossListener(activeBosses, plugin), plugin);
     }
 
     private void registerBosses() {
@@ -122,7 +122,7 @@ public class BossSpawnManager implements Listener {
             }
         }.runTaskLater(plugin, 20L * 60 * 3); // 3 minutos en ticks
 
-        PendingSpawn ps = new PendingSpawn(location, bossId, System.currentTimeMillis() + 180000, stand, particleTask, timeoutTask);
+        PendingSpawn ps = new PendingSpawn(location, bossId, stand, particleTask, timeoutTask);
         pendingSpawns.put(stand.getUniqueId(), ps);
     }
 
@@ -196,14 +196,9 @@ public class BossSpawnManager implements Listener {
     }
 
     private String selectRandomBossId() {
-        // Por simplicidad, devolvemos el primero habilitado.
-        // En una implementación completa se leerían pesos de la configuración.
-        if (plugin.getConfig().getBoolean("bosses.putrid_colossus.enabled", true))
-            return "putrid_colossus";
-        if (plugin.getConfig().getBoolean("bosses.necromancer_skeleton.enabled", true))
-            return "necromancer_skeleton";
-        // ... otros bosses
-        return null;
+        List<String> available = getAvailableBossIds();
+        if (available.isEmpty()) return null;
+        return available.get(random.nextInt(available.size()));
     }
 
     private Location findSurfaceLocationNear(Location center) {
@@ -240,7 +235,7 @@ public class BossSpawnManager implements Listener {
         BukkitTask particleTask;
         BukkitTask timeoutTask;
 
-        PendingSpawn(Location loc, String bossId, long expiry, ArmorStand stand, BukkitTask particleTask, BukkitTask timeoutTask) {
+        PendingSpawn(Location loc, String bossId, ArmorStand stand, BukkitTask particleTask, BukkitTask timeoutTask) {
             this.location = loc;
             this.bossId = bossId;
             this.stand = stand;
@@ -249,4 +244,58 @@ public class BossSpawnManager implements Listener {
         }
     }
 
+    
+    // Fuerza la creación de un placeholder cerca del jugador indicado,
+    public boolean forceSpawnEvent(Player player, String bossId) {
+        // Seleccionar boss
+        String selectedId = (bossId != null) ? bossId : selectRandomBossId();
+        if (selectedId == null || !bossConstructors.containsKey(selectedId)) {
+            player.sendMessage("§cBoss ID no válido: " + bossId);
+            return false;
+        }
+
+        // Buscar ubicación cerca del jugador, con distancia reducida para testing
+        Location spawnLoc = findSurfaceLocationNearForTest(player.getLocation());
+        if (spawnLoc == null) {
+            player.sendMessage("§cNo se encontró una ubicación válida cercana.");
+            return false;
+        }
+
+        // Broadcast igual que en el spawn automático
+        String message = plugin.getConfig().getString("boss-spawn.broadcast-message",
+                "&cA abomination is about to appear at X: %x Y: %y Z: %z!");
+        message = ChatColor.translateAlternateColorCodes('&',
+                message.replace("%x", String.valueOf(spawnLoc.getBlockX()))
+                    .replace("%y", String.valueOf(spawnLoc.getBlockY()))
+                    .replace("%z", String.valueOf(spawnLoc.getBlockZ())));
+        Bukkit.broadcastMessage(message);
+
+        createPlaceholder(spawnLoc, selectedId);
+
+        player.sendMessage("§aPlaceholder creado en §e" +
+                spawnLoc.getBlockX() + ", " + spawnLoc.getBlockY() + ", " + spawnLoc.getBlockZ() +
+                " §apara boss §e" + selectedId);
+
+        return true;
     }
+
+    /**
+     * Versión de findSurfaceLocationNear con distancia reducida para testing (10-30 bloques).
+     */
+    private Location findSurfaceLocationNearForTest(Location center) {
+        World world = center.getWorld();
+        for (int i = 0; i < 30; i++) {
+            double angle = random.nextDouble() * 2 * Math.PI;
+            int dist = 10 + random.nextInt(20); // 10-30 bloques, visible pero no encima del jugador
+            int dx = (int) (Math.cos(angle) * dist);
+            int dz = (int) (Math.sin(angle) * dist);
+            int x = center.getBlockX() + dx;
+            int z = center.getBlockZ() + dz;
+            int y = world.getHighestBlockYAt(x, z) + 1;
+            Location loc = new Location(world, x + 0.5, y, z + 0.5);
+            if (isSafeSurface(loc)) return loc;
+        }
+        return null;
+    }
+
+}
