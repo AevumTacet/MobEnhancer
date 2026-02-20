@@ -117,7 +117,8 @@ public class MobSpawn implements TabExecutor {
             player.sendMessage("§cBoss system is not enabled.");
             return true;
         }
-        boolean success = plugin.getBossSpawnManager().spawnBoss(bossId, player.getLocation());
+        // Ahora pasamos primero la ubicación y luego el ID
+        boolean success = plugin.getBossSpawnManager().spawnBoss(player.getLocation(), bossId);
         if (success) {
             player.sendMessage("§aSpawned boss: " + bossId);
         } else {

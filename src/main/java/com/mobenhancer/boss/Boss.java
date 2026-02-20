@@ -10,6 +10,8 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.entity.EntityShootBowEvent;
+import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -116,4 +118,7 @@ public abstract class Boss {
     public UUID getEntityId() {
         return entityId;
     }
+
+    public void onShootBow(EntityShootBowEvent event) {}
+    public void onProjectileHit(ProjectileHitEvent event) {}
 }

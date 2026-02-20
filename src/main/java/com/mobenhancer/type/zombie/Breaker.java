@@ -283,11 +283,11 @@ public class Breaker implements ZombieCustomType {
                 0.8f);
 
         // 4. Programar la destrucción real después de 20 ticks
-        new BukkitRunnable() {
+            new BukkitRunnable() {
             @Override
             public void run() {
                 if (breaker.isValid() &&
-                        (shouldBreak(mainBlock) || (upperBlock != null && shouldBreak(upperBlock)))) {
+                        (shouldBreak(mainBlock) || (upperBlock != null && shouldBreak(upperBlock)))) {  // ← AÑADIDO null check
                     breakBlocks(breaker, mainBlock, upperBlock);
                 }
             }
@@ -315,14 +315,15 @@ public class Breaker implements ZombieCustomType {
     }
 
     private boolean shouldBreak(Block block) {
-        return BREAKABLE.contains(block.getType()) &&
+        if (block == null) return false;
+            return BREAKABLE.contains(block.getType()) &&
                 block.getType().isSolid() &&
                 !block.isEmpty();
     }
 
     private void breakBlocks(Zombie breaker, Block... blocks) {
         for (Block block : blocks) {
-            if (shouldBreak(block)) {
+            if (block != null && shouldBreak(block)) {
                 // Efecto visual de destrucción
                 breaker.getWorld().playEffect(block.getLocation(), Effect.STEP_SOUND, block.getType());
 

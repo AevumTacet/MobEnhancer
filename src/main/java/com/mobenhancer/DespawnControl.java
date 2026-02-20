@@ -56,7 +56,8 @@ public class DespawnControl implements Listener {
     }
 
     private boolean shouldDespawn(Entity entity) {
-        if (entity.getPersistentDataContainer().has(new NamespacedKey(plugin, "boss_type"), PersistentDataType.STRING)) {
+        if (entity.getPersistentDataContainer().has(new NamespacedKey(plugin, "boss_type"), PersistentDataType.STRING) ||
+            entity.getPersistentDataContainer().has(new NamespacedKey(plugin, "familiar"), PersistentDataType.BYTE)) {
             return false;
         }
         if (!(entity instanceof Mob)) return false;

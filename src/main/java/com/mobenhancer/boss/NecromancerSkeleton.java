@@ -1,0 +1,583 @@
+package com.mobenhancer.boss;
+
+import org.bukkit.*;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.entity.*;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.entity.EntityShootBowEvent;
+import org.bukkit.event.entity.ProjectileHitEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.SkullMeta;
+import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.profile.PlayerProfile;
+import org.bukkit.profile.PlayerTextures;
+import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.util.Vector;
+
+import com.mobenhancer.MobEnhancer;
+
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+import java.util.UUID;
+
+public class NecromancerSkeleton extends Boss {
+
+    // Constantes
+    private static final double MAX_HEALTH = 200.0;
+    private static final double SCALE = 1.5;
+    private static final double PROJECTILE_DAMAGE = 10.0; // máximo
+    private static final int PROJECTILE_COOLDOWN_SECONDS = 3;
+    private static final double PROJECTILE_CHANCE = 0.4;
+    private static final int SUMMON_COOLDOWN_SECONDS = 20;
+    private static final double SUMMON_CHANCE = 0.4;
+    private static final int SUMMON_COUNT = 2;
+    private static final double SUMMON_RADIUS = 8.0;
+    private static final double LIFESTEAL_AURA_CHANCE = 0.4;
+    private static final double LIFESTEAL_AURA_TRIGGER_HEALTH_PERCENT = 0.75;
+    private static final double LIFESTEAL_AURA_RADIUS = 8.0;
+    private static final int LIFESTEAL_AURA_DURATION = 3; // segundos
+    private static final double LIFESTEAL_AURA_DAMAGE_PER_SECOND = 10.0;
+
+    // Textura para la cabeza personalizada
+    private static final String SKULL_TEXTURE = "170991b5525f60cab1d975509d3f969634a2afcc07ed311010a6078dde452e6d";
+
+    // Estado
+    private SkeletonHorse horse;
+    private final List<LivingEntity> familiars = new ArrayList<>();
+    private final Random random = new Random();
+
+    private boolean auraActive = false;
+    private boolean auraWarning = false;
+
+    private long lastProjectileTime = 0;
+    private long lastSummonTime = 0;
+
+    public NecromancerSkeleton(JavaPlugin plugin) {
+        super(plugin, "necromancer_skeleton", "Necromancer Skeleton", MAX_HEALTH);
+    }
+
+    @SuppressWarnings("deprecation")
+    private ItemStack createCustomHead() {
+        ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta meta = (SkullMeta) head.getItemMeta();
+
+        PlayerProfile profile = Bukkit.createPlayerProfile(UUID.randomUUID(), "Necromancer");
+        PlayerTextures textures = profile.getTextures();
+
+        try {
+            URL skinUrl = new URL("https://textures.minecraft.net/texture/" + SKULL_TEXTURE);
+            textures.setSkin(skinUrl);
+        } catch (MalformedURLException ex) {
+            throw new RuntimeException("URL de textura inválida", ex);
+        }
+
+        profile.setTextures(textures);
+        meta.setOwnerProfile(profile);
+        head.setItemMeta(meta);
+
+        return head;
+    }
+
+    @Override
+    public void spawn(Location location) {
+        World world = location.getWorld();
+
+        // 1. Spawn del caballo esqueleto (con IA activada)
+        horse = (SkeletonHorse) world.spawnEntity(location, EntityType.SKELETON_HORSE);
+        configureHorse(horse);
+
+        // 2. Spawn del stray (necromancer)
+        Stray necromancer = (Stray) world.spawnEntity(location, EntityType.STRAY);
+        configureNecromancer(necromancer);
+
+        // 3. Montar el necromancer en el caballo
+        horse.addPassenger(necromancer);
+
+        // 4. Marcar ambos como bosses
+        markAsBoss(necromancer);
+        markAsBoss(horse);
+
+        this.entity = necromancer;
+        this.entityId = necromancer.getUniqueId();
+        this.active = true;
+
+        // 5. Inicializar bossbar (solo para el necromancer)
+        initBossBar();
+
+        // 6. Iniciar tareas
+        startTicking();
+        startConstantParticles();
+    }
+
+    private void configureHorse(SkeletonHorse horse) {
+        horse.getAttribute(Attribute.SCALE).setBaseValue(SCALE);
+        horse.setInvulnerable(true);
+        horse.setTamed(true);
+        horse.setRemoveWhenFarAway(false);
+        horse.setCustomName("Necromancer's Steed");
+        horse.setCustomNameVisible(false);
+        horse.setAI(true);  // IA activada para que se mueva solo
+        // Ajustar velocidad para que sea más ágil
+        horse.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(0.3);
+    }
+
+    private void configureNecromancer(Stray necromancer) {
+        necromancer.getAttribute(Attribute.SCALE).setBaseValue(SCALE);
+        necromancer.getAttribute(Attribute.MAX_HEALTH).setBaseValue(MAX_HEALTH);
+        necromancer.setHealth(MAX_HEALTH);
+        necromancer.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(0.25);
+        necromancer.getAttribute(Attribute.FOLLOW_RANGE).setBaseValue(24.0);
+        // Le damos un arco para que la IA lo considere un atacante a distancia
+        necromancer.getEquipment().setItemInMainHand(new ItemStack(Material.BOW));
+        necromancer.getEquipment().setItemInMainHandDropChance(0);
+        ItemStack head = createCustomHead();
+        necromancer.getEquipment().setHelmet(head);
+        necromancer.getEquipment().setHelmetDropChance(0);
+
+        // Eliminar tipo skeleton previo
+        necromancer.getPersistentDataContainer().remove(MobEnhancer.skeletonKey);
+        necromancer.getPersistentDataContainer().set(MobEnhancer.skeletonKey, PersistentDataType.STRING, "default");
+    }
+
+    private void startTicking() {
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (!active || entity == null || entity.isDead()) {
+                    cancel();
+                    return;
+                }
+                tick();
+            }
+        }.runTaskTimer(plugin, 0L, 20L); // cada segundo
+    }
+
+    @Override
+    public void tick() {
+        if (!active || entity == null) return;
+
+        updateBossBar();
+        updateBossBarViewers(50);
+
+        // Verificar que sigue montado
+        if (entity.getVehicle() == null || !entity.getVehicle().equals(horse)) {
+            if (horse.isValid() && !horse.isDead()) {
+                horse.addPassenger(entity);
+            }
+        }
+
+        // Sincronizar el objetivo del caballo con el del necromancer
+        LivingEntity target = ((Mob) entity).getTarget();
+        if (horse != null && !horse.isDead()) {
+            horse.setTarget(target);
+        }
+
+        long now = System.currentTimeMillis();
+
+        // --- Proyectil ---
+        if (target != null && (now - lastProjectileTime) >= PROJECTILE_COOLDOWN_SECONDS * 1000L) {
+            if (random.nextDouble() < PROJECTILE_CHANCE) {
+                shootProjectile(target);
+                lastProjectileTime = now;
+            }
+        }
+
+        // --- Invocación ---
+        if (target != null && (now - lastSummonTime) >= SUMMON_COOLDOWN_SECONDS * 1000L) {
+            if (random.nextDouble() < SUMMON_CHANCE) {
+                summonFamiliars(target);
+                lastSummonTime = now;
+            }
+        }
+
+        familiars.removeIf(fam -> fam == null || fam.isDead() || !fam.isValid());
+    }
+
+    // ================== PROYECTIL ==================
+
+    @Override
+    public void onShootBow(EntityShootBowEvent event) {
+        event.setCancelled(true);
+    }
+
+    private void shootProjectile(LivingEntity target) {
+        if (!(entity instanceof Stray necromancer)) return;
+
+        // Animación de levantar la mano
+        necromancer.swingMainHand();
+
+        Location eyeLoc = necromancer.getEyeLocation();
+        Vector direction = target.getLocation().add(0, 1, 0).toVector().subtract(eyeLoc.toVector()).normalize();
+
+        Snowball snowball = necromancer.launchProjectile(Snowball.class, direction.multiply(1.5));
+        snowball.setShooter(necromancer);
+
+        // Marcar el proyectil como del necromancer
+        NamespacedKey key = new NamespacedKey(plugin, "necromancer_projectile");
+        snowball.getPersistentDataContainer().set(key, PersistentDataType.BYTE, (byte) 1);
+
+        // Efectos visuales
+        snowball.setGlowing(true);
+        snowball.setVisualFire(true);
+        startProjectileTrail(snowball);
+
+        necromancer.getWorld().playSound(necromancer.getLocation(), Sound.ENTITY_SNOWBALL_THROW, 1.0f, 0.5f);
+    }
+
+    private void startProjectileTrail(Snowball snowball) {
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (!snowball.isValid() || snowball.isOnGround() || snowball.isDead()) {
+                    cancel();
+                    return;
+                }
+                snowball.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, snowball.getLocation(), 3, 0.1, 0.1, 0.1, 0.01);
+            }
+        }.runTaskTimer(plugin, 0L, 2L);
+    }
+
+    @Override
+    public void onProjectileHit(ProjectileHitEvent event) {
+        if (!(event.getEntity() instanceof Snowball snowball)) return;
+        NamespacedKey key = new NamespacedKey(plugin, "necromancer_projectile");
+        if (!snowball.getPersistentDataContainer().has(key, PersistentDataType.BYTE)) return;
+
+        if (event.getHitEntity() instanceof LivingEntity target) {
+            double damage = PROJECTILE_DAMAGE * (0.6 + 0.4 * random.nextDouble()); // entre 3 y 5
+            target.damage(damage, entity);
+
+            // Transferir vida al necromancer
+            double newHealth = Math.min(entity.getHealth() + damage, MAX_HEALTH);
+            entity.setHealth(newHealth);
+            updateBossBar();
+
+            // Efectos
+            target.getWorld().spawnParticle(Particle.SOUL, target.getLocation().add(0, 1, 0), 10, 0.3, 0.3, 0.3, 0.1);
+            entity.getWorld().playSound(entity.getLocation(), Sound.ENTITY_WITHER_SHOOT, 1.0f, 1.2f);
+        }
+
+        snowball.remove();
+    }
+
+    // ================== INVOCACIÓN ==================
+
+    private void summonFamiliars(LivingEntity target) {
+
+        Location bossLoc = entity.getLocation();
+        World world = bossLoc.getWorld();
+
+        // --- Efectos de invocación ---
+        world.playSound(bossLoc, Sound.ENTITY_WITHER_SPAWN, 1.0f, 0.8f);
+
+        // CORREGIDO: DUST requiere DustOptions
+        Particle.DustOptions dustOptions = new Particle.DustOptions(Color.fromRGB(80, 0, 180), 2.0f);
+        world.spawnParticle(Particle.DUST, bossLoc.clone().add(0, 2, 0),
+                50, 3, 2, 3, 0.1, dustOptions);
+
+        int count = random.nextInt(SUMMON_COUNT) + 1;
+        int spawned = 0;
+
+        for (int i = 0; i < count; i++) {
+            Location spawnLoc = findGroundLocationRobust(bossLoc);
+            if (spawnLoc == null) {
+                // plugin.getLogger().warning("[NecromancerSkeleton] No se encontró ubicación de suelo para familiar #" + i);
+                continue;
+            }
+
+            Skeleton familiar = spawnFamiliar(spawnLoc, target);
+            familiars.add(familiar);
+            spawned++;
+
+            // Efecto de aparición por familiar
+            world.spawnParticle(Particle.WITCH, spawnLoc.clone().add(0, 1, 0),
+                    20, 0.4, 0.6, 0.4, 0.05);
+            world.playSound(spawnLoc, Sound.ENTITY_SKELETON_AMBIENT, 1.0f, 0.8f);
+        }
+
+        // plugin.getLogger().info("[NecromancerSkeleton] Familiares invocados: " + spawned + "/" + count);
+    }
+
+    private static final String FAMILIAR_SKULL_TEXTURE = "53d5a20c3061de0d9d8431c9b92d9dc3367839634a951303aef1e5d5973c4ba1";
+
+    @SuppressWarnings("deprecation")
+    private ItemStack createFamiliarHead() {
+        ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+        SkullMeta meta = (SkullMeta) head.getItemMeta();
+
+        PlayerProfile profile = Bukkit.createPlayerProfile(UUID.randomUUID(), "Familiar");
+        PlayerTextures textures = profile.getTextures();
+
+        try {
+            URL skinUrl = new URL("https://textures.minecraft.net/texture/" + FAMILIAR_SKULL_TEXTURE);
+            textures.setSkin(skinUrl);
+        } catch (MalformedURLException ex) {
+            throw new RuntimeException("URL de textura inválida para familiar", ex);
+        }
+
+        profile.setTextures(textures);
+        meta.setOwnerProfile(profile);
+        head.setItemMeta(meta);
+
+        return head;
+    }
+
+    private Skeleton spawnFamiliar(Location spawnLoc, LivingEntity target) {
+        Skeleton familiar = (Skeleton) spawnLoc.getWorld().spawnEntity(spawnLoc, EntityType.SKELETON);
+        familiar.setCustomName("§5Familiar");
+        familiar.setCustomNameVisible(true);
+        familiar.getAttribute(Attribute.MAX_HEALTH).setBaseValue(20.0);
+        familiar.setHealth(20.0);
+        familiar.getAttribute(Attribute.SCALE).setBaseValue(0.75); // Tamaño reducido
+        familiar.setRemoveWhenFarAway(false);
+        familiar.setTarget(target);
+
+        // Equipar cabeza personalizada
+        familiar.getEquipment().setHelmet(createFamiliarHead());
+        familiar.getEquipment().setHelmetDropChance(0);
+
+        familiar.getPersistentDataContainer().set(
+                new NamespacedKey(plugin, "familiar"),
+                PersistentDataType.BYTE, (byte) 1);
+
+        return familiar;
+    }
+
+    /**
+     * Versión robusta: busca suelo en un radio, con fallback a la posición del boss.
+     */
+    private Location findGroundLocationRobust(Location origin) {
+        World world = origin.getWorld();
+
+        // Intentar posición aleatoria dentro del radio
+        for (int attempt = 0; attempt < 8; attempt++) {
+            double offsetX = random.nextDouble() * SUMMON_RADIUS * 2 - SUMMON_RADIUS;
+            double offsetZ = random.nextDouble() * SUMMON_RADIUS * 2 - SUMMON_RADIUS;
+
+            int x = (int) (origin.getX() + offsetX);
+            int z = (int) (origin.getZ() + offsetZ);
+
+            Location candidate = findSafeGroundAt(world, x, z, (int) origin.getY());
+            if (candidate != null) return candidate;
+        }
+
+        // Fallback: justo al lado del boss
+        return findSafeGroundAt(world, origin.getBlockX() + 1, origin.getBlockZ() + 1, (int) origin.getY());
+    }
+
+    /**
+     * Busca una posición segura en X/Z, escaneando desde Y de referencia
+     * hacia arriba y hacia abajo, en lugar de depender solo de getHighestBlockYAt.
+     * Esto funciona correctamente en interiores y cuevas.
+     */
+    private Location findSafeGroundAt(World world, int x, int z, int referenceY) {
+        // Buscar hacia abajo desde referenceY+5 hasta referenceY-10
+        for (int y = referenceY + 5; y >= referenceY - 10; y--) {
+            Location feet = new Location(world, x + 0.5, y, z + 0.5);
+            Location head = new Location(world, x + 0.5, y + 1, z + 0.5);
+            Location floor = new Location(world, x + 0.5, y - 1, z + 0.5);
+
+            boolean feetClear = feet.getBlock().getType().isAir() || !feet.getBlock().getType().isSolid();
+            boolean headClear = head.getBlock().getType().isAir() || !head.getBlock().getType().isSolid();
+            boolean hasFloor = floor.getBlock().getType().isSolid();
+
+            if (feetClear && headClear && hasFloor) {
+                return feet;
+            }
+        }
+        return null;
+    }
+
+    // ================== AURA DE ROBO DE VIDA ==================
+
+    private void startLifestealAura() {
+        // auraWarning ya fue puesto a true en onDamage, no repetir aquí
+
+        if (!active || entity == null || entity.isDead()) {
+            auraWarning = false;
+            return;
+        }
+
+        entity.getWorld().playSound(entity.getLocation(), Sound.ENTITY_EVOKER_PREPARE_ATTACK, 1.0f, 0.7f);
+
+        new BukkitRunnable() {
+            int warningTicks = 0;
+
+            @Override
+            public void run() {
+                if (!active || entity == null || entity.isDead()) {
+                    auraWarning = false;
+                    cancel();
+                    return;
+                }
+
+                if (warningTicks >= 4) {
+                    auraWarning = false;
+                    activateAura();
+                    cancel();
+                    return;
+                }
+
+                // Partículas de advertencia: espiral roja alrededor del necromancer
+                Location loc = entity.getLocation().add(0, 1, 0);
+                double radius = 2.0;
+                for (int i = 0; i < 8; i++) {
+                    double angle = (warningTicks * 20 + i * 45) * Math.PI / 180;
+                    double x = loc.getX() + radius * Math.cos(angle);
+                    double z = loc.getZ() + radius * Math.sin(angle);
+                    Location particleLoc = new Location(loc.getWorld(), x, loc.getY(), z);
+                    loc.getWorld().spawnParticle(Particle.DUST, particleLoc, 1, 0, 0, 0, 0,
+                            new Particle.DustOptions(Color.fromRGB(255, 0, 0), 1.5f));
+                }
+                loc.getWorld().spawnParticle(Particle.WITCH, loc, 10, 1, 1, 1, 0);
+
+                warningTicks++;
+            }
+        }.runTaskTimer(plugin, 0L, 20L);
+    }
+
+    private void activateAura() {
+        auraActive = true;
+        Location center = entity.getLocation();
+        World world = center.getWorld();
+
+        // Sonido de activación
+        world.playSound(center, Sound.ENTITY_EVOKER_CAST_SPELL, 1.0f, 0.5f);
+        world.playSound(center, Sound.ENTITY_WITHER_SHOOT, 1.0f, 1.2f);
+
+        // Partícula grande de inicio
+        world.spawnParticle(Particle.EXPLOSION, center, 1);
+        drawRedCircle(center, LIFESTEAL_AURA_RADIUS);
+
+        new BukkitRunnable() {
+            int seconds = 0;
+
+            @Override
+            public void run() {
+                if (!active || entity.isDead() || seconds >= LIFESTEAL_AURA_DURATION) {
+                    auraActive = false;
+                    cancel();
+                    return;
+                }
+
+                double totalDamage = 0;
+                for (Entity e : world.getNearbyEntities(center, LIFESTEAL_AURA_RADIUS, 4, LIFESTEAL_AURA_RADIUS)) {
+                    if (e instanceof Player) {
+                        Player p = (Player) e;
+                        double damage = Math.min(p.getHealth(), LIFESTEAL_AURA_DAMAGE_PER_SECOND);
+                        p.damage(damage, entity);
+                        totalDamage += damage;
+                    } else if (e instanceof Mob && !familiars.contains(e) && !e.equals(horse)) {
+                        LivingEntity mob = (LivingEntity) e;
+                        double damage = Math.min(mob.getHealth(), LIFESTEAL_AURA_DAMAGE_PER_SECOND);
+                        mob.damage(damage, entity);
+                        totalDamage += damage;
+                    }
+                }
+
+                if (totalDamage > 0) {
+                    double newHealth = Math.min(entity.getHealth() + totalDamage, MAX_HEALTH);
+                    entity.setHealth(newHealth);
+                    updateBossBar();
+                }
+
+                drawRedCircle(center, LIFESTEAL_AURA_RADIUS);
+                seconds++;
+            }
+        }.runTaskTimer(plugin, 0L, 20L);
+    }
+
+    private void drawRedCircle(Location center, double radius) {
+        World world = center.getWorld();
+        int points = 36;
+        double angleStep = 2 * Math.PI / points;
+
+        for (int i = 0; i < points; i++) {
+            double angle = i * angleStep;
+            double x = center.getX() + radius * Math.cos(angle);
+            double z = center.getZ() + radius * Math.sin(angle);
+            int y = world.getHighestBlockYAt((int) x, (int) z) + 1;
+            Location loc = new Location(world, x, y, z);
+            world.spawnParticle(Particle.DUST, loc, 12, 0, 0, 0, 12,
+                    new Particle.DustOptions(Color.fromRGB(255, 0, 0), 1));
+        }
+    }
+
+    private void startConstantParticles() {
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (!active || entity == null || entity.isDead()) {
+                    cancel();
+                    return;
+                }
+                entity.getWorld().spawnParticle(
+                        Particle.CRIMSON_SPORE,
+                        entity.getLocation().add(0, 2, 0),
+                        8, 0.5, 0.5, 0.5, 0
+                );
+            }
+        }.runTaskTimer(plugin, 0L, 10L);
+    }
+
+    // ================== EVENTOS DE DAÑO ==================
+
+    @Override
+    public void onDamage(EntityDamageByEntityEvent event) {
+        if (!event.getEntity().equals(entity)) return;
+
+        // Calcular salud resultante, clampeada a 0 para evitar negativos
+        double healthAfterDamage = Math.max(0, entity.getHealth() - event.getFinalDamage());
+        double triggerThreshold = MAX_HEALTH * LIFESTEAL_AURA_TRIGGER_HEALTH_PERCENT;
+
+        // Guardia: si ya está activa o en advertencia, no hacer nada
+        if (auraActive || auraWarning) return;
+
+        // Comprobar si la salud resultante está por debajo del umbral
+        if (healthAfterDamage <= 0) return; // Va a morir, no tiene sentido activar el aura
+        if (healthAfterDamage > triggerThreshold) return;
+
+        // Aplicar chance
+        if (random.nextDouble() >= LIFESTEAL_AURA_CHANCE) return;
+
+        // Marcar inmediatamente para evitar activaciones múltiples en el mismo tick
+        auraWarning = true;
+
+        /* plugin.getLogger().info("[NecromancerSkeleton] Aura triggered! Health after damage: "
+                + String.format("%.1f", healthAfterDamage) + "/" + MAX_HEALTH
+                + " (threshold: " + triggerThreshold + ")");
+ */
+        // Diferir al siguiente tick para que el daño ya esté aplicado
+        Bukkit.getScheduler().runTask(plugin, this::startLifestealAura);
+    }
+
+    // ================== MUERTE ==================
+
+    @Override
+    public void onDeath(EntityDeathEvent event) {
+        // Matar al caballo
+        if (horse != null && !horse.isDead()) {
+            horse.setInvulnerable(false);
+            horse.setHealth(0);
+        }
+
+        // Eliminar familiares
+        for (LivingEntity fam : familiars) {
+            if (!fam.isDead()) fam.remove();
+        }
+        familiars.clear();
+
+        // Drops configurables (ejemplo)
+        event.getDrops().clear();
+        event.getDrops().add(new ItemStack(Material.BONE, 10));
+        event.getDrops().add(new ItemStack(Material.BOW, 1));
+        // Podríamos leer de config.yml aquí
+
+        despawn();
+    }
+}
