@@ -13,18 +13,26 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 
 public class EndermanControl implements Listener {
     private final JavaPlugin plugin;
     private final Map<UUID, LivingEntity> trackedEndermen = new HashMap<>();
+    // Rastrea el timestamp del último disarm por enderman
+    private final Map<UUID, Long> lastDisarmTime = new HashMap<>();
+    // Rastrea qué endermans tienen un warning activo para evitar duplicados
+    private final Set<UUID> disarmWarningActive = new HashSet<>();
     private final Random random = new Random();
     private static final double PULL_RANGE = 5.0;
-    private static final double PULL_CHANCE = 0.5;
+    private static final double PULL_CHANCE = 0.15;
     private static final double DISARM_CHANCE = 0.1;
     private static final double DISARM_RANGE = 8.0;
+    private static final int    DISARM_WARNING_SECS = 5;
+    private static final long   DISARM_COOLDOWN_MS  = 60_000L;
 
     public EndermanControl(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -32,38 +40,42 @@ public class EndermanControl implements Listener {
 
     @EventHandler
     public void onEndermanTarget(EntityTargetLivingEntityEvent event) {
-        if (event.getEntity() instanceof Enderman enderman && event.getTarget() != null) {
-            trackedEndermen.put(enderman.getUniqueId(), event.getTarget());
-            startAbilityCheck(enderman);
-        }
+        if (!(event.getEntity() instanceof Enderman enderman)) return;
+        if (event.getTarget() == null) return;
+
+        // Excluir endermans que sean bosses del sistema MobEnhancer
+        if (enderman.getPersistentDataContainer().has(
+                new NamespacedKey(plugin, "mob_enhancer_boss"),
+                org.bukkit.persistence.PersistentDataType.BYTE)) return;
+
+        trackedEndermen.put(enderman.getUniqueId(), event.getTarget());
+        startAbilityCheck(enderman);
     }
 
     private void startAbilityCheck(Enderman enderman) {
         new BukkitRunnable() {
             public void run() {
-                // Verificar estado y target actual
-                if (!enderman.isValid() ||
-                        !trackedEndermen.containsKey(enderman.getUniqueId()) ||
-                        enderman.getTarget() != trackedEndermen.get(enderman.getUniqueId())) {
-
+                if (!enderman.isValid()
+                        || !trackedEndermen.containsKey(enderman.getUniqueId())
+                        || enderman.getTarget() != trackedEndermen.get(enderman.getUniqueId())) {
                     trackedEndermen.remove(enderman.getUniqueId());
+                    disarmWarningActive.remove(enderman.getUniqueId());
                     cancel();
                     return;
                 }
 
                 LivingEntity target = trackedEndermen.get(enderman.getUniqueId());
 
-                // Verificar y aplicar habilidad de Pull
                 if (shouldPull(enderman, target)) {
                     applyPull(enderman, target);
                 }
 
-                // Verificar y aplicar habilidad de Disarm
+                // Reemplazar applyDisarm directo por el warning previo
                 if (shouldDisarm(enderman, target)) {
-                    applyDisarm(enderman, target);
+                    startDisarmWarning(enderman, target);
                 }
             }
-        }.runTaskTimer(plugin, 0L, 20L); // Check cada 1 segundo
+        }.runTaskTimer(plugin, 0L, 20L);
     }
 
     private boolean shouldPull(Enderman enderman, LivingEntity target) {
@@ -76,15 +88,115 @@ public class EndermanControl implements Listener {
     }
 
     private boolean shouldDisarm(Enderman enderman, LivingEntity target) {
-        return enderman.getLocation().distance(target.getLocation()) <= DISARM_RANGE &&
-                random.nextDouble() <= DISARM_CHANCE &&
-                enderman.getTarget() != null &&
-                enderman.getTarget() == target &&
-                enderman.hasLineOfSight(target) &&
-                isClearPath(enderman.getEyeLocation(), target.getEyeLocation()) &&
-                hasItemInHand(target);
+        // No iniciar si ya hay un warning activo para este enderman
+        if (disarmWarningActive.contains(enderman.getUniqueId())) return false;
+
+        // Comprobar cooldown
+        long lastTime = lastDisarmTime.getOrDefault(enderman.getUniqueId(), 0L);
+        if (System.currentTimeMillis() - lastTime < DISARM_COOLDOWN_MS) return false;
+
+        return enderman.getLocation().distance(target.getLocation()) <= DISARM_RANGE
+                && random.nextDouble() <= DISARM_CHANCE
+                && enderman.getTarget() != null
+                && enderman.getTarget() == target
+                && enderman.hasLineOfSight(target)
+                && isClearPath(enderman.getEyeLocation(), target.getEyeLocation())
+                && hasItemInHand(target);
     }
 
+    private void startDisarmWarning(Enderman enderman, LivingEntity warnTarget) {
+        disarmWarningActive.add(enderman.getUniqueId());
+
+        enderman.getWorld().playSound(enderman.getLocation(),
+                Sound.ENTITY_ENDERMAN_STARE, 1.0f, 0.8f);
+
+        // Aplicar Nausea al target si es jugador
+        if (warnTarget instanceof org.bukkit.entity.Player player) {
+            player.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                    org.bukkit.potion.PotionEffectType.NAUSEA,
+                    DISARM_WARNING_SECS * 20 + 10,
+                    0,
+                    false,
+                    false,
+                    false
+            ));
+        }
+
+        new BukkitRunnable() {
+            int ticks = 0;
+            final int warningTicks = DISARM_WARNING_SECS * 20;
+            double spiralAngle = 0;
+
+            @Override
+            public void run() {
+                // Cancelar si el enderman o el target ya no son válidos
+                if (!enderman.isValid() || enderman.isDead()
+                        || !warnTarget.isValid() || warnTarget.isDead()) {
+                    cleanup();
+                    cancel();
+                    return;
+                }
+
+                if (ticks >= warningTicks) {
+                    try {
+                        // Re-verificar que sigue teniendo item en mano
+                        if (hasItemInHand(warnTarget)) {
+                            applyDisarm(enderman, warnTarget);
+                            // Registrar timestamp del disarm ejecutado
+                            lastDisarmTime.put(enderman.getUniqueId(),
+                                    System.currentTimeMillis());
+                        }
+                    } finally {
+                        cleanup();
+                        cancel();
+                    }
+                    return;
+                }
+
+                // Espiral de 3 brazos en tonos rosa alrededor del target
+                Location targetLoc = warnTarget.getLocation().clone().add(0, 1, 0);
+
+                for (int i = 0; i < 3; i++) {
+                    double armAngle     = spiralAngle + i * (Math.PI * 2.0 / 3.0);
+                    double spiralRadius = 0.8 + Math.sin(ticks * 0.2) * 0.2;
+                    double heightOffset = ((ticks % 20) / 20.0) * 2.0 - 1.0;
+
+                    double x = targetLoc.getX() + spiralRadius * Math.cos(armAngle);
+                    double z = targetLoc.getZ() + spiralRadius * Math.sin(armAngle);
+                    double y = targetLoc.getY() + heightOffset;
+
+                    Color color = (i == 0)
+                            ? Color.fromRGB(255, 20,  147) // rosa intenso
+                            : (i == 1)
+                                ? Color.fromRGB(255, 105, 180) // rosa medio
+                                : Color.fromRGB(255, 182, 193); // rosa claro
+
+                    targetLoc.getWorld().spawnParticle(Particle.DUST,
+                            new Location(targetLoc.getWorld(), x, y, z),
+                            1, 0, 0, 0, 0,
+                            new Particle.DustOptions(color, 1.3f));
+                }
+
+                // Sonido tenue cada segundo
+                if (ticks % 20 == 0) {
+                    warnTarget.getWorld().playSound(warnTarget.getLocation(),
+                            Sound.ENTITY_ENDERMAN_TELEPORT, 0.4f, 1.5f);
+                }
+
+                spiralAngle += 0.25;
+                ticks++;
+            }
+
+            private void cleanup() {
+                disarmWarningActive.remove(enderman.getUniqueId());
+                if (warnTarget instanceof org.bukkit.entity.Player player
+                        && player.isValid() && !player.isDead()) {
+                    player.removePotionEffect(org.bukkit.potion.PotionEffectType.NAUSEA);
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+    
     private boolean hasItemInHand(LivingEntity target) {
         EntityEquipment equipment = target.getEquipment();
         if (equipment == null)

@@ -35,6 +35,13 @@ public class PutridColossus extends Boss {
     private static final double HORDE_CALL_CHANCE = 0.1;
     private static final int HORDE_CALL_COOLDOWN = 10;
 
+    private static final double PHASE2_HEALTH_PERCENT       = 0.30;
+    // Multiplicadores de fase 2
+    private static final double PHASE2_JUMP_CHANCE          = JUMP_CHANCE   * 1.5; // 0.225
+    private static final double PHASE2_THROW_CHANCE         = THROW_CHANCE  * 1.5; // 0.30
+
+    private boolean phase2Active = false;
+
     private static final String CUSTOM_TEXTURE_HASH = "ddbc98f98e71537e2b66317a32731b924a9e4de6963f8fd75f94a2208740cb3c";
 
     @SuppressWarnings("deprecation")
@@ -60,7 +67,7 @@ public class PutridColossus extends Boss {
     }
 
     public PutridColossus(JavaPlugin plugin) {
-        super(plugin, "putrid_colossus", "Putrid Colossus", 400.0);
+        super(plugin, "putrid_colossus", "Putrid Colossus", 1200.0);
     }
 
     @Override
@@ -76,7 +83,7 @@ public class PutridColossus extends Boss {
         zombie.getAttribute(Attribute.MAX_HEALTH).setBaseValue(maxHealth);
         zombie.setHealth(maxHealth);
         zombie.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(0.2);
-        zombie.getAttribute(Attribute.ATTACK_DAMAGE).setBaseValue(10.0);
+        zombie.getAttribute(Attribute.ATTACK_DAMAGE).setBaseValue(19.0);
         zombie.getAttribute(Attribute.KNOCKBACK_RESISTANCE).setBaseValue(1.0);
         zombie.setRemoveWhenFarAway(false);
 
@@ -92,6 +99,7 @@ public class PutridColossus extends Boss {
         this.active = true;
 
         initBossBar();
+        holdChunk();
         startTicking();
     }
 
@@ -113,17 +121,34 @@ public class PutridColossus extends Boss {
         updateBossBar();
         updateBossBarViewers(50);
 
+        // Comprobar transición a fase 2
+        if (!phase2Active && entity.getHealth() <= maxHealth * PHASE2_HEALTH_PERCENT) {
+            activatePhase2();
+        }
+
         if (jumpCooldown > 0) jumpCooldown--;
         if (hordeCallCooldown > 0) hordeCallCooldown--;
 
         LivingEntity target = ((Zombie) entity).getTarget();
 
-        if (target != null && jumpCooldown == 0 && random.nextDouble() < JUMP_CHANCE) {
+        // Invalidar target si está muerto, en otro mundo, o a más de 100 bloques
+        if (target instanceof Player player && !isValidTarget(player)) {
+            ((Zombie) entity).setTarget(null);
+            target = null;
+        }
+
+        // Chances de salto y horda dependen de la fase activa
+        double currentJumpChance  = phase2Active ? PHASE2_JUMP_CHANCE  : JUMP_CHANCE;
+        double currentHordeChance = HORDE_CALL_CHANCE; // la horda no cambia en fase 2
+
+        if (target != null && jumpCooldown == 0
+                && random.nextDouble() < currentJumpChance) {
             jumpTowards(target);
             jumpCooldown = JUMP_COOLDOWN_SECONDS;
         }
 
-        if (target != null && hordeCallCooldown == 0 && random.nextDouble() < HORDE_CALL_CHANCE) {
+        if (target != null && hordeCallCooldown == 0
+                && random.nextDouble() < currentHordeChance) {
             callHorde(target);
             hordeCallCooldown = HORDE_CALL_COOLDOWN;
         }
@@ -213,9 +238,9 @@ public class PutridColossus extends Boss {
     /**
      * Maneja los ataques del coloso (cuando él es el dañador)
      */
-        private void handleAttack(LivingEntity target) {
-        // Ataque de lanzamiento con probabilidad THROW_CHANCE
-        if (random.nextDouble() < THROW_CHANCE) {
+    private void handleAttack(LivingEntity target) {
+        double currentThrowChance = phase2Active ? PHASE2_THROW_CHANCE : THROW_CHANCE;
+        if (random.nextDouble() < currentThrowChance) {
             performThrowAttack(target);
         }
     }
@@ -243,16 +268,36 @@ public class PutridColossus extends Boss {
                         Location center = entity.getLocation();
                         World world = center.getWorld();
 
-                        world.spawnParticle(Particle.SPORE_BLOSSOM_AIR, center, 80, 4, 2, 4, 0);
+                        world.spawnParticle(Particle.SPORE_BLOSSOM_AIR,
+                                center, 80, 4, 2, 4, 0);
                         drawPoisonRing(center, 8.0);
+
+                        // Fase 2: amplifier y duración duplicados
+                        int poisonAmplifier  = phase2Active ? 1 : 0; // nivel 2 vs nivel 1
+                        int slowAmplifier    = phase2Active ? 3 : 1; // nivel 4 vs nivel 2
+                        int weakAmplifier    = phase2Active ? 1 : 0; // nivel 2 vs nivel 1
+                        int duration         = phase2Active ? 400 : 200; // 20s vs 10s
 
                         world.getNearbyEntities(center, 8, 4, 8).stream()
                                 .filter(e -> e instanceof Player)
                                 .forEach(e -> {
                                     Player p = (Player) e;
-                                    p.addPotionEffect(new PotionEffect(PotionEffectType.POISON, 200, 0));
-                                    p.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 200, 1));
-                                    p.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 200, 0));
+                                    p.addPotionEffect(new PotionEffect(
+                                            PotionEffectType.POISON,
+                                            duration, poisonAmplifier));
+                                    p.addPotionEffect(new PotionEffect(
+                                            PotionEffectType.SLOWNESS,
+                                            duration, slowAmplifier));
+                                    p.addPotionEffect(new PotionEffect(
+                                            PotionEffectType.WEAKNESS,
+                                            duration, weakAmplifier));
+
+                                    // Fase 2: añadir nausea como efecto adicional
+                                    if (phase2Active) {
+                                        p.addPotionEffect(new PotionEffect(
+                                                PotionEffectType.NAUSEA,
+                                                duration, 0));
+                                    }
                                 });
 
                         poisoning = false;
@@ -260,8 +305,11 @@ public class PutridColossus extends Boss {
                         return;
                     }
 
+                    // Partículas de advertencia — más intensas en fase 2
+                    int particleCount = phase2Active ? 60 : 30;
                     entity.getWorld().spawnParticle(Particle.SNEEZE,
-                            entity.getLocation().add(0, 2, 0), 30, 1, 1, 1, 0.1);
+                            entity.getLocation().clone().add(0, 2, 0),
+                            particleCount, 1, 1, 1, 0.1);
                     ticks++;
                 }
             }.runTaskTimer(plugin, 0L, 20L);
@@ -308,6 +356,84 @@ public class PutridColossus extends Boss {
                     Color.fromRGB(0, 255, 0));
         }
         world.playSound(center, Sound.ENTITY_EVOKER_FANGS_ATTACK, 1.0f, 0.3f);
+    }
+
+    private void activatePhase2() {
+        phase2Active = true;
+
+        // Resistencia 2
+        entity.addPotionEffect(new PotionEffect(
+                PotionEffectType.RESISTANCE,
+                Integer.MAX_VALUE, 1, false, true, true));
+
+        // Resistencia al fuego 2
+        entity.addPotionEffect(new PotionEffect(
+                PotionEffectType.FIRE_RESISTANCE,
+                Integer.MAX_VALUE, 1, false, true, true));
+
+        Location loc = entity.getLocation().clone();
+        World world = loc.getWorld();
+
+        // Sonidos de transición
+        world.playSound(loc, Sound.ENTITY_GENERIC_EXPLODE,    1.5f, 0.4f);
+        world.playSound(loc, Sound.ENTITY_EVOKER_CAST_SPELL,  1.0f, 0.3f);
+        world.playSound(loc, Sound.ENTITY_ZOMBIE_VILLAGER_CONVERTED, 1.0f, 0.5f);
+
+        // Explosión de partículas de veneno
+        world.spawnParticle(Particle.EXPLOSION, loc.clone().add(0, 1, 0), 3);
+        world.spawnParticle(Particle.SPORE_BLOSSOM_AIR,
+                loc.clone().add(0, 2, 0), 120, 3, 2, 3, 0.05);
+
+        // Anillo de veneno expandiéndose
+        drawPoisonRing(loc, 8.0);
+        drawPoisonRing(loc, 5.0);
+        drawPoisonRing(loc, 2.5);
+
+        // Animación de pulso verde durante 2.5 segundos
+        new BukkitRunnable() {
+            double angle = 0;
+            int ticks = 0;
+
+            @Override
+            public void run() {
+                if (ticks >= 50 || !active || entity == null || entity.isDead()) {
+                    cancel();
+                    return;
+                }
+
+                double progress = ticks / 50.0;
+                // Radio que crece y luego se contrae
+                double radius = 6.0 * Math.sin(progress * Math.PI);
+
+                for (int i = 0; i < 8; i++) {
+                    double a = angle + i * (Math.PI / 4);
+                    double x = loc.getX() + radius * Math.cos(a);
+                    double z = loc.getZ() + radius * Math.sin(a);
+                    double y = loc.getY() + 1.5
+                            + Math.sin(ticks * 0.25 + i) * 1.2;
+
+                    world.spawnParticle(Particle.ENTITY_EFFECT,
+                            new Location(world, x, y, z),
+                            1, 0, 0, 0, 0,
+                            Color.fromRGB(0, 200, 50));
+                }
+
+                // Partículas de esporas adicionales en el punto álgido de la animación
+                if (ticks == 25) {
+                    world.spawnParticle(Particle.SPORE_BLOSSOM_AIR,
+                            loc.clone().add(0, 3, 0),
+                            200, 4, 3, 4, 0.02);
+                    world.playSound(loc, Sound.ENTITY_SLIME_SQUISH_SMALL,
+                            2.0f, 0.3f);
+                }
+
+                angle += 0.3;
+                ticks++;
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+
+        plugin.getLogger().info("[PutridColossus] Fase 2 activada. HP: "
+                + String.format("%.1f", entity.getHealth()) + "/" + maxHealth);
     }
 
     @Override

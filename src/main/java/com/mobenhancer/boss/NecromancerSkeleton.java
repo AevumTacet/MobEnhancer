@@ -28,20 +28,27 @@ import java.util.UUID;
 public class NecromancerSkeleton extends Boss {
 
     // Constantes
-    private static final double MAX_HEALTH = 200.0;
+    private static final double MAX_HEALTH = 800.0;
     private static final double SCALE = 1.5;
-    private static final double PROJECTILE_DAMAGE = 10.0; // máximo
-    private static final int PROJECTILE_COOLDOWN_SECONDS = 3;
-    private static final double PROJECTILE_CHANCE = 0.4;
+    private static final double PROJECTILE_DAMAGE = 15.0; // máximo
+    private static final int PROJECTILE_COOLDOWN_SECONDS = 2;
+    private static final double PROJECTILE_CHANCE = 0.6;
     private static final int SUMMON_COOLDOWN_SECONDS = 20;
     private static final double SUMMON_CHANCE = 0.4;
-    private static final int SUMMON_COUNT = 2;
+    private static final int SUMMON_COUNT = 4;
     private static final double SUMMON_RADIUS = 8.0;
     private static final double LIFESTEAL_AURA_CHANCE = 0.4;
     private static final double LIFESTEAL_AURA_TRIGGER_HEALTH_PERCENT = 0.75;
     private static final double LIFESTEAL_AURA_RADIUS = 8.0;
     private static final int LIFESTEAL_AURA_DURATION = 3; // segundos
-    private static final double LIFESTEAL_AURA_DAMAGE_PER_SECOND = 10.0;
+    private static final double LIFESTEAL_AURA_DAMAGE_PER_SECOND = 25.0;
+
+    // ── Fase 2 ───────────────────────────────────────────────────────
+    private static final double PHASE2_HEALTH_PERCENT  = 0.30;
+    private static final double PHASE2_BLIND_RADIUS    = 6.0;
+    private static final int    PHASE2_BLIND_DURATION  = 60;  // 3 segundos (ticks)
+    private static final int    PHASE2_BLIND_AMPLIFIER = 0;   // nivel 1
+    private boolean phase2Active = false;
 
     // Textura para la cabeza personalizada
     private static final String SKULL_TEXTURE = "c34f534f6cb88d5272dfe8601c261651b4990e6605d718d09072a42c2a41843d";
@@ -108,6 +115,7 @@ public class NecromancerSkeleton extends Boss {
 
         // 5. Inicializar bossbar (solo para el necromancer)
         initBossBar();
+        holdChunk();
 
         // 6. Iniciar tareas
         startTicking();
@@ -184,15 +192,26 @@ public class NecromancerSkeleton extends Boss {
     public void tick() {
         if (!active || entity == null || entity.isDead()) return;
 
+        if (entity.getHealth() <= 0) {
+            plugin.getLogger().warning(
+                    "[NecromancerSkeleton] Salud en 0 pero entidad no muerta. Forzando muerte.");
+            forceCleanup();
+            return;
+        }
+
         updateBossBar();
         updateBossBarViewers(50.0);
+
+        // Comprobar transición a fase 2
+        if (!phase2Active && entity.getHealth() <= MAX_HEALTH * PHASE2_HEALTH_PERCENT) {
+            activatePhase2();
+        }
 
         // Verificar que el necromancer sigue montado en el caballo
         if (horse != null && horse.isValid() && !horse.isDead()) {
             if (entity.getVehicle() == null || !entity.getVehicle().equals(horse)) {
                 horse.addPassenger(entity);
             }
-            // Sincronizar objetivo del caballo con el del necromancer
             LivingEntity target = ((Mob) entity).getTarget();
             horse.setTarget(target);
         }
@@ -200,16 +219,31 @@ public class NecromancerSkeleton extends Boss {
         long now = System.currentTimeMillis();
         LivingEntity target = ((Mob) entity).getTarget();
 
-        // --- Proyectil ---
+        if (target instanceof Player player && !isValidTarget(player)) {
+            ((Mob) entity).setTarget(null);
+            if (horse != null && horse.isValid()) horse.setTarget(null);
+            target = null;
+        }
+
         if (target != null && target.isValid() && !target.isDead()) {
-            if ((now - lastProjectileTime) >= PROJECTILE_COOLDOWN_SECONDS * 1000L) {
-                if (random.nextDouble() < PROJECTILE_CHANCE) {
-                    shootProjectile(target);
-                    lastProjectileTime = now;
+            lastTargetTime = now;
+        }
+
+        // Proyectil — en fase 2 se permite el disparo nativo (onShootBow no cancela)
+        if (target != null && target.isValid() && !target.isDead()) {
+            if (!phase2Active) {
+                // Fase 1: proyectil personalizado (snowball robavidas)
+                if ((now - lastProjectileTime) >= PROJECTILE_COOLDOWN_SECONDS * 1000L) {
+                    if (random.nextDouble() < PROJECTILE_CHANCE) {
+                        shootProjectile(target);
+                        lastProjectileTime = now;
+                    }
                 }
             }
+            // En fase 2, la IA nativa del Stray dispara flechas libremente
+            // onShootBow ya no cancela el evento cuando phase2Active == true
 
-            // --- Invocación ---
+            // Invocación
             if ((now - lastSummonTime) >= SUMMON_COOLDOWN_SECONDS * 1000L) {
                 if (random.nextDouble() < SUMMON_CHANCE) {
                     summonFamiliars(target);
@@ -218,7 +252,11 @@ public class NecromancerSkeleton extends Boss {
             }
         }
 
-        // Limpiar familiares muertos o inválidos
+        // Ceguera en fase 2 — aplicar a jugadores survival cercanos
+        if (phase2Active) {
+            applyPhase2Blindness();
+        }
+
         familiars.removeIf(fam -> fam == null || fam.isDead() || !fam.isValid());
     }
 
@@ -254,11 +292,70 @@ public class NecromancerSkeleton extends Boss {
         }.runTaskTimer(plugin, 20L, 10L);
     }
 
+    private void applyPhase2Blindness() {
+        if (entity == null || entity.isDead()) return;
+
+        Location bossLoc = entity.getLocation();
+
+        for (Entity e : entity.getWorld().getNearbyEntities(
+                bossLoc, PHASE2_BLIND_RADIUS, PHASE2_BLIND_RADIUS, PHASE2_BLIND_RADIUS)) {
+
+            if (!(e instanceof Player p)) continue;
+            if (p.getGameMode() != GameMode.SURVIVAL) continue;
+            if (!p.isValid() || p.isDead()) continue;
+
+            // Re-aplicar ceguera cada tick para que nunca expire mientras está en rango
+            p.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                    org.bukkit.potion.PotionEffectType.BLINDNESS,
+                    PHASE2_BLIND_DURATION,
+                    PHASE2_BLIND_AMPLIFIER,
+                    false,  // ambient: false — partículas visibles
+                    false,  // particles: false — la ceguera no necesita partículas propias
+                    true    // icon: mostrar ícono en HUD
+            ));
+        }
+    }
     // ================== PROYECTIL ==================
 
     @Override
     public void onShootBow(EntityShootBowEvent event) {
-        event.setCancelled(true);
+        if (!phase2Active) {
+            // Fase 1: cancelar siempre — usamos el proyectil personalizado
+            event.setCancelled(true);
+            return;
+        }
+
+        // Fase 2: permitir el disparo nativo pero modificar la flecha
+        if (!(event.getProjectile() instanceof Arrow arrow)) return;
+
+        // Aplicar efecto wither a la flecha
+        arrow.addCustomEffect(
+                new org.bukkit.potion.PotionEffect(
+                        org.bukkit.potion.PotionEffectType.WITHER,
+                        60,  // 3 segundos
+                        1,   // amplifier: nivel 2
+                        false,
+                        true
+                ),
+                true
+        );
+
+        // Estela de partículas en la flecha
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (!arrow.isValid() || arrow.isDead() || arrow.isOnGround()) {
+                    cancel();
+                    return;
+                }
+                arrow.getWorld().spawnParticle(
+                        Particle.DUST,
+                        arrow.getLocation(),
+                        1, 0, 0, 0, 0,
+                        new Particle.DustOptions(Color.fromRGB(30, 0, 30), 1.0f)
+                );
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
     }
 
     private void shootProjectile(LivingEntity target) {
@@ -680,36 +777,134 @@ public class NecromancerSkeleton extends Boss {
         // Marcar inmediatamente para evitar activaciones múltiples en el mismo tick
         auraWarning = true;
 
-        /* plugin.getLogger().info("[NecromancerSkeleton] Aura triggered! Health after damage: "
-                + String.format("%.1f", healthAfterDamage) + "/" + MAX_HEALTH
-                + " (threshold: " + triggerThreshold + ")");
- */
-        // Diferir al siguiente tick para que el daño ya esté aplicado
         Bukkit.getScheduler().runTask(plugin, this::startLifestealAura);
     }
 
+    /**
+     * Activa la fase 2 del Necromancer Skeleton.
+     * Añade efectos de resistencia y muestra partículas de transición.
+     */
+    private void activatePhase2() {
+        phase2Active = true;
+
+        // Resistencia 2
+        entity.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                org.bukkit.potion.PotionEffectType.RESISTANCE,
+                Integer.MAX_VALUE, 1, false, true, true));
+
+        // Resistencia al fuego 2
+        entity.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                org.bukkit.potion.PotionEffectType.FIRE_RESISTANCE,
+                Integer.MAX_VALUE, 1, false, true, true));
+
+        Location loc = entity.getLocation().clone();
+        World world = loc.getWorld();
+
+        // Sonidos de transición
+        world.playSound(loc, Sound.ENTITY_WITHER_SPAWN,   1.0f, 0.6f);
+        world.playSound(loc, Sound.ENTITY_EVOKER_CAST_SPELL, 1.0f, 0.5f);
+
+        // Explosión de partículas de transición
+        world.spawnParticle(Particle.EXPLOSION, loc.clone().add(0, 1, 0), 2);
+        world.spawnParticle(Particle.SOUL,
+                loc.clone().add(0, 2, 0), 60, 2, 1, 2, 0.15);
+        world.spawnParticle(Particle.DUST,
+                loc.clone().add(0, 2, 0), 80, 2, 1, 2, 0.1,
+                new Particle.DustOptions(Color.fromRGB(180, 0, 255), 2.0f));
+
+        // Mensaje a jugadores cercanos
+        for (Player p : world.getPlayers()) {
+            if (p.getLocation().distanceSquared(loc) <= 80 * 80) {
+                p.sendMessage(ChatColor.DARK_PURPLE + "" + ChatColor.BOLD
+                        + "The Lich Skeleton grows desperate!");
+            }
+        }
+
+        // Animación de pulso durante 2 segundos
+        new BukkitRunnable() {
+            double angle = 0;
+            int ticks = 0;
+
+            @Override
+            public void run() {
+                if (ticks >= 40 || !active || entity == null || entity.isDead()) {
+                    cancel();
+                    return;
+                }
+                double progress = ticks / 40.0;
+                double radius = 4.0 * Math.sin(progress * Math.PI);
+
+                for (int i = 0; i < 6; i++) {
+                    double a = angle + i * (Math.PI / 3);
+                    double x = loc.getX() + radius * Math.cos(a);
+                    double z = loc.getZ() + radius * Math.sin(a);
+                    double y = loc.getY() + 1.5 + Math.sin(ticks * 0.3 + i) * 1.0;
+
+                    world.spawnParticle(Particle.DUST,
+                            new Location(world, x, y, z),
+                            1, 0, 0, 0, 0,
+                            new Particle.DustOptions(
+                                    Color.fromRGB(220, 0, 100), 1.8f));
+                }
+                angle += 0.35;
+                ticks++;
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+
+        plugin.getLogger().info("[NecromancerSkeleton] Fase 2 activada. HP: "
+                + String.format("%.1f", entity.getHealth()) + "/" + MAX_HEALTH);
+    }
+
     // ================== MUERTE ==================
+    /**
+     * Forzar la limpieza completa del boss cuando el flujo de muerte normal falla.
+     * Esto ocurre cuando el Stray está montado y el EntityDeathEvent no se dispara.
+     */
+    private void forceCleanup() {
+        active = false; // idempotente, no importa si ya era false
+
+        if (horse != null && horse.isValid()) {
+            horse.removePassenger(entity);
+        }
+
+        familiars.removeIf(fam -> {
+            if (fam != null && fam.isValid() && !fam.isDead()) fam.remove();
+            return true;
+        });
+
+        // Solo hacer drops y efectos si la entidad todavía existe
+        // (si onDeath ya la procesó, isValid() devolverá false)
+        if (entity != null && entity.isValid() && !entity.isDead()) {
+            Location deathLoc = entity.getLocation();
+            deathLoc.getWorld().dropItemNaturally(deathLoc,
+                    new ItemStack(Material.BONE, 10));
+            deathLoc.getWorld().dropItemNaturally(deathLoc,
+                    new ItemStack(Material.EXPERIENCE_BOTTLE, 4));
+            deathLoc.getWorld().spawnParticle(
+                    Particle.EXPLOSION, deathLoc.clone().add(0, 1, 0), 3,
+                    0.5, 0.5, 0.5, 0.1);
+            deathLoc.getWorld().playSound(deathLoc,
+                    Sound.ENTITY_SKELETON_DEATH, 1.0f, 0.8f);
+            entity.remove();
+        }
+
+        if (horse != null && horse.isValid() && !horse.isDead()) {
+            horse.setInvulnerable(false);
+            horse.remove();
+        }
+
+        if (bossBar != null) {
+            bossBar.removeAll();
+        }
+    }
 
     @Override
     public void onDeath(EntityDeathEvent event) {
-        // Matar al caballo
-        if (horse != null && !horse.isDead()) {
-            horse.setInvulnerable(false);
-            horse.setHealth(0);
-        }
-
-        // Eliminar familiares
-        for (LivingEntity fam : familiars) {
-            if (!fam.isDead()) fam.remove();
-        }
-        familiars.clear();
-
-        // Drops configurables (ejemplo)
+        // Limpiar drops por defecto y añadir los nuestros
         event.getDrops().clear();
-        event.getDrops().add(new ItemStack(Material.BONE, 10));
-        event.getDrops().add(new ItemStack(Material.BOW, 1));
-        // Podríamos leer de config.yml aquí
-
-        despawn();
+        // Delegar toda la limpieza a forceCleanup para evitar duplicación
+        // Marcar active = false primero para detener el tick inmediatamente
+        active = false;
+        forceCleanup();
     }
 }

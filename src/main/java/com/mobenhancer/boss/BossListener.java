@@ -1,15 +1,19 @@
 package com.mobenhancer.boss;
 
-import org.bukkit.Bukkit;
+import org.bukkit.NamespacedKey;
+import org.bukkit.entity.FallingBlock;
 import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityShootBowEvent;
+import org.bukkit.event.entity.EntityTeleportEvent;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Map;
@@ -69,6 +73,13 @@ public class BossListener implements Listener {
         }
     }
 
+        @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onBossTeleport(EntityTeleportEvent event) {
+        if (activeBosses.containsKey(event.getEntity().getUniqueId())) {
+            event.setCancelled(true);
+        }
+    }
+    
     @EventHandler
     public void onEntityShootBow(EntityShootBowEvent event) {
         Boss boss = activeBosses.get(event.getEntity().getUniqueId());
@@ -78,13 +89,37 @@ public class BossListener implements Listener {
     }
 
     @EventHandler
-    public void onPlayerRespawn(PlayerRespawnEvent event) {
-        Player player = event.getPlayer();
+    public void onFallingBlockLand(org.bukkit.event.entity.EntityChangeBlockEvent event) {
+        if (!(event.getEntity() instanceof FallingBlock fb)) return;
+        // Verificar si es un block throw del Overseer mediante metadata
+        if (!fb.getPersistentDataContainer().has(
+                new NamespacedKey(plugin, "overseer_block_throw"),
+                PersistentDataType.BYTE)) return;
 
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            for (Boss boss : activeBosses.values()) {
-                boss.checkBossBarForPlayer(player, 50.0);
+        // Notificar al boss correspondiente
+        for (Boss boss : activeBosses.values()) {
+            if (boss instanceof EndermanOverseer overseer) {
+                overseer.onBlockThrowLand(event.getBlock().getLocation().clone()
+                        .add(0.5, 1, 0.5));
+                break;
             }
-        });
+        }
+    }
+
+    @EventHandler
+    public void onBossEnvironmentalDamage(EntityDamageEvent event) {
+        Boss boss = activeBosses.get(event.getEntity().getUniqueId());
+        if (boss != null && event.getCause() == EntityDamageEvent.DamageCause.DROWNING) {
+            event.setCancelled(true);
+        }
+    }
+    
+    @EventHandler
+    public void onPlayerRespawn(PlayerRespawnEvent event) {
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            for (Boss boss : activeBosses.values()) {
+                boss.checkBossBarForPlayer(event.getPlayer(), 50.0);
+            }
+        }, 40L); // 2 segundos de delay
     }
 }

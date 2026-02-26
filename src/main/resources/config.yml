@@ -22,12 +22,13 @@ zombifiedPiglinAttack: true
 
 boss-spawn:
   enabled: true
-  min-players: 2
-  chance-per-second: 0.001   # 0.1% cada segundo
+  min-players: 1
   max-concurrent: 1
+  cooldown-minutes: 60      # 1 hora entre spawns naturales
+  chance: 0.25              # 25% de probabilidad cuando el cooldown expira
   distance-min: 100
   distance-max: 200
-  broadcast-message: "&cAn abomination is about to appear at X: %x Y: %y Z: %z!"
+  broadcast-message: "&cA abomination is about to appear at X: %x Y: %y Z: %z!"
 
 bosses:
   putrid_colossus:

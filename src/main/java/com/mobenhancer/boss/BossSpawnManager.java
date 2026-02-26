@@ -19,6 +19,8 @@ public class BossSpawnManager implements Listener {
     private final Map<UUID, PendingSpawn> pendingSpawns = new HashMap<>(); // key = armor stand UUID
     private final Map<UUID, Boss> activeBosses = new HashMap<>();
     private final Map<String, Function<JavaPlugin, Boss>> bossConstructors = new HashMap<>();
+    private static final long BOSS_NO_TARGET_TIMEOUT_MS = 5 * 60 * 1000L; // 5 minutos
+    private long lastNaturalSpawnTime = 0L;
 
     // Clave para marcar el armor stand como placeholder
     private final NamespacedKey placeholderKey;
@@ -28,6 +30,7 @@ public class BossSpawnManager implements Listener {
         this.placeholderKey = new NamespacedKey(plugin, "boss_placeholder");
         registerBosses();
         startSpawningTask();
+        startBossTimeoutTask();
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
         plugin.getServer().getPluginManager().registerEvents(new BossListener(activeBosses, plugin), plugin);
     }
@@ -35,7 +38,7 @@ public class BossSpawnManager implements Listener {
     private void registerBosses() {
         bossConstructors.put("putrid_colossus", PutridColossus::new);
         bossConstructors.put("necromancer_skeleton", NecromancerSkeleton::new);
-        //bossConstructors.put("enderman_overseer", EndermanOverseer::new);
+        bossConstructors.put("enderman_overseer", EndermanOverseer::new);
         //bossConstructors.put("wandering_warden", WanderingWarden::new);
         //bossConstructors.put("nether_raid", NetherRaid::new);
     }
@@ -44,43 +47,61 @@ public class BossSpawnManager implements Listener {
         new BukkitRunnable() {
             @Override
             public void run() {
-                // Comprobar si el spawn está habilitado
+                // ── Guardias básicas ────────────────────────────────────
                 if (!plugin.getConfig().getBoolean("boss-spawn.enabled", true)) return;
 
-                int minPlayers = plugin.getConfig().getInt("boss-spawn.min-players", 2);
+                int minPlayers = plugin.getConfig().getInt("boss-spawn.min-players", 1);
                 if (Bukkit.getOnlinePlayers().size() < minPlayers) return;
 
                 int maxConcurrent = plugin.getConfig().getInt("boss-spawn.max-concurrent", 1);
+                // Contar solo bosses activos, no placeholders pendientes
                 if (activeBosses.size() >= maxConcurrent) return;
 
-                double chance = plugin.getConfig().getDouble("boss-spawn.chance-per-second", 0.001);
+                // ── Cooldown explícito ──────────────────────────────────
+                long cooldownMs = plugin.getConfig()
+                        .getLong("boss-spawn.cooldown-minutes", 60) * 60_000L;
+                long now = System.currentTimeMillis();
+
+                if (now - lastNaturalSpawnTime < cooldownMs) return;
+
+                // ── Chance de spawn (ahora es una probabilidad de "activar"
+                //    la ventana, no de spawn por segundo) ─────────────────
+                double chance = plugin.getConfig()
+                        .getDouble("boss-spawn.chance", 0.25); // 25% cuando el cooldown expira
                 if (random.nextDouble() > chance) return;
 
-                // Seleccionar jugador aleatorio
+                // ── Selección de jugador y ubicación ───────────────────
                 List<Player> players = new ArrayList<>(Bukkit.getOnlinePlayers());
+                if (players.isEmpty()) return;
                 Player target = players.get(random.nextInt(players.size()));
 
-                // Calcular ubicación de spawn
                 Location spawnLoc = findSurfaceLocationNear(target.getLocation());
                 if (spawnLoc == null) return;
 
-                // Seleccionar un boss aleatorio
                 String bossId = selectRandomBossId();
                 if (bossId == null) return;
 
-                // Broadcast
-                String message = plugin.getConfig().getString("boss-spawn.broadcast-message",
+                // ── Registrar el timestamp ANTES del spawn ──────────────
+                // para que incluso si algo falla, el cooldown se respete
+                lastNaturalSpawnTime = now;
+
+                // ── Broadcast ──────────────────────────────────────────
+                String message = plugin.getConfig().getString(
+                        "boss-spawn.broadcast-message",
                         "&cA abomination is about to appear at X: %x Y: %y Z: %z!");
                 message = ChatColor.translateAlternateColorCodes('&',
                         message.replace("%x", String.valueOf(spawnLoc.getBlockX()))
-                               .replace("%y", String.valueOf(spawnLoc.getBlockY()))
-                               .replace("%z", String.valueOf(spawnLoc.getBlockZ())));
+                            .replace("%y", String.valueOf(spawnLoc.getBlockY()))
+                            .replace("%z", String.valueOf(spawnLoc.getBlockZ())));
                 Bukkit.broadcastMessage(message);
 
-                // Crear placeholder
+                plugin.getLogger().info("[BossSpawnManager] Spawn natural activado. "
+                        + "Próximo spawn disponible en "
+                        + (cooldownMs / 60_000L) + " minutos.");
+
                 createPlaceholder(spawnLoc, bossId);
             }
-        }.runTaskTimer(plugin, 0L, 20L); // cada segundo
+        }.runTaskTimer(plugin, 20L * 60, 20L * 60); // comprobar una vez por minuto
     }
 
     /**
@@ -101,18 +122,73 @@ public class BossSpawnManager implements Listener {
 
         // Programar partículas visibles alrededor del armor stand
         BukkitTask particleTask = new BukkitRunnable() {
-            @Override
-            public void run() {
-                if (!stand.isValid() || stand.isDead()) {
-                    cancel();
-                    return;
-                }
-                // Partículas de portal (moradas) para indicar lugar de aparición
-                world.spawnParticle(Particle.PORTAL, stand.getLocation().add(0, 1, 0), 30, 1, 1, 1, 0.1);
-                // Añadir algunas partículas de llamas o dragón breath para que sea más visible
-                world.spawnParticle(Particle.DRAGON_BREATH, stand.getLocation().add(0, 1, 0), 5, 0.5, 0.5, 0.5, 0);
+        private double angle = 0;
+        private final Location base = location.clone(); // posición fija, no depende del stand
+
+        @Override
+        public void run() {
+            if (!stand.isValid() || stand.isDead()) {
+                cancel();
+                return;
             }
-        }.runTaskTimer(plugin, 0L, 10L); // cada 0.5 segundos
+
+            World world = base.getWorld();
+
+            // --- Espiral ascendente ---
+            // Dos brazos de la espiral desfasados 180° para más volumen visual
+            for (int arm = 0; arm < 2; arm++) {
+                double armOffset = arm * Math.PI;
+
+                for (int step = 0; step < 12; step++) {
+                    double t = step / 12.0; // 0.0 → 1.0, progreso vertical
+
+                    double currentAngle = angle + armOffset + (t * Math.PI * 3); // 1.5 vueltas por brazo
+                    double radius = 0.6 + t * 0.4; // radio crece ligeramente hacia arriba
+                    double height = t * 3.5; // columna de 3.5 bloques de alto
+
+                    double x = base.getX() + radius * Math.cos(currentAngle);
+                    double z = base.getZ() + radius * Math.sin(currentAngle);
+                    double y = base.getY() + height;
+
+                    Location particleLoc = new Location(world, x, y, z);
+
+                    // Color: degradado de morado oscuro (base) a azul claro (cima)
+                    int red   = (int) (80  * (1 - t) + 40  * t);
+                    int green = (int) (0   * (1 - t) + 10  * t);
+                    int blue  = (int) (180 * (1 - t) + 255 * t);
+
+                    world.spawnParticle(
+                            Particle.DUST,
+                            particleLoc,
+                            1, 0, 0, 0, 0,
+                            new Particle.DustOptions(Color.fromRGB(red, green, blue), 1.3f)
+                    );
+                }
+            }
+
+            // --- Partículas de ambiente en la base ---
+            // PORTAL gira por sí solo visualmente y da sensación de succión
+            world.spawnParticle(
+                    Particle.PORTAL,
+                    base.clone().add(0, 0.5, 0),
+                    6, 0.3, 0.1, 0.3, 0.4
+            );
+
+            // --- Destellos ocasionales en la cima de la columna ---
+            // Solo cada ~1 segundo (el runnable corre cada 3 ticks = 15 veces/seg)
+            if ((int)(angle * 10) % 15 == 0) {
+                world.spawnParticle(
+                        Particle.END_ROD,
+                        base.clone().add(0, 3.8, 0),
+                        3, 0.2, 0.1, 0.2, 0.02
+                );
+            }
+
+            // Avanzar el ángulo base: velocidad de rotación de la espiral
+            angle += 0.25;
+            if (angle > Math.PI * 2) angle -= Math.PI * 2; // mantener en rango para evitar overflow
+        }
+    }.runTaskTimer(plugin, 0L, 3L); // cada 3 ticks = fluido sin ser costoso
 
         // Programar timeout (3 minutos)
         BukkitTask timeoutTask = new BukkitRunnable() {
@@ -120,7 +196,7 @@ public class BossSpawnManager implements Listener {
             public void run() {
                 removePlaceholder(stand.getUniqueId());
             }
-        }.runTaskLater(plugin, 20L * 60 * 3); // 3 minutos en ticks
+        }.runTaskLater(plugin, 20L * 60 * 8); // 8 minutos en ticks
 
         PendingSpawn ps = new PendingSpawn(location, bossId, stand, particleTask, timeoutTask);
         pendingSpawns.put(stand.getUniqueId(), ps);
@@ -146,20 +222,30 @@ public class BossSpawnManager implements Listener {
 
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
+        if (event.getFrom().getBlockX() == event.getTo().getBlockX() &&
+            event.getFrom().getBlockY() == event.getTo().getBlockY() &&
+            event.getFrom().getBlockZ() == event.getTo().getBlockZ()) {
+            return;
+        }
+
         Player player = event.getPlayer();
         Location playerLoc = player.getLocation();
 
-        // Iterar sobre una copia para evitar ConcurrentModification
         new ArrayList<>(pendingSpawns.entrySet()).forEach(entry -> {
             UUID standId = entry.getKey();
             PendingSpawn ps = entry.getValue();
+
             if (!ps.stand.isValid() || ps.stand.isDead()) {
-                // Si el armor stand ya no es válido, lo limpiamos
                 removePlaceholder(standId);
                 return;
             }
-            if (playerLoc.distanceSquared(ps.location) < 20 * 20) {
-                // Jugador dentro del radio, spawnear boss
+
+            // Distancia horizontal solamente (ignorar diferencia de altura Y)
+            double dx = playerLoc.getX() - ps.location.getX();
+            double dz = playerLoc.getZ() - ps.location.getZ();
+            double horizontalDistanceSquared = dx * dx + dz * dz;
+
+            if (horizontalDistanceSquared <= 8 * 8) {
                 spawnBoss(ps.location, ps.bossId);
                 removePlaceholder(standId);
             }
@@ -272,9 +358,9 @@ public class BossSpawnManager implements Listener {
 
         createPlaceholder(spawnLoc, selectedId);
 
-        player.sendMessage("§aPlaceholder creado en §e" +
+        player.sendMessage("§aPlaceholder created at §e" +
                 spawnLoc.getBlockX() + ", " + spawnLoc.getBlockY() + ", " + spawnLoc.getBlockZ() +
-                " §apara boss §e" + selectedId);
+                " §afor boss §e" + selectedId);
 
         return true;
     }
@@ -296,6 +382,48 @@ public class BossSpawnManager implements Listener {
             if (isSafeSurface(loc)) return loc;
         }
         return null;
+    }
+
+    private void startBossTimeoutTask() {
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (activeBosses.isEmpty()) return;
+
+                long now = System.currentTimeMillis();
+
+                // Iterar sobre copia para poder modificar el mapa durante el bucle
+                new ArrayList<>(activeBosses.entrySet()).forEach(entry -> {
+                    Boss boss = entry.getValue();
+
+                    // Saltar bosses ya muertos o inactivos (serán limpiados por onBossDeath)
+                    if (!boss.isActive() || boss.getEntity() == null || boss.getEntity().isDead()) return;
+
+                    long idleTime = now - boss.getLastTargetTime();
+
+                    if (idleTime >= BOSS_NO_TARGET_TIMEOUT_MS) {
+                        plugin.getLogger().info("[BossSpawnManager] Boss '" + boss.getId()
+                                + "' eliminado por inactividad ("
+                                + (idleTime / 1000) + "s sin target).");
+
+                        // Efectos de despawn para que no desaparezca abruptamente
+                        Location loc = boss.getEntity().getLocation();
+                        loc.getWorld().spawnParticle(
+                                Particle.EXPLOSION, loc.clone().add(0, 1, 0), 3,
+                                0.5, 0.5, 0.5, 0.1
+                        );
+                        loc.getWorld().playSound(loc, Sound.ENTITY_WITHER_DEATH, 1.0f, 1.2f);
+
+                        // Eliminar de activeBosses todas las entradas que apunten a este boss
+                        // (entidad principal + caballo en el caso del Necromancer)
+                        activeBosses.entrySet().removeIf(e -> e.getValue().equals(boss));
+
+                        // Despawnear el boss y limpiar sus recursos
+                        boss.despawn();
+                    }
+                });
+            }
+        }.runTaskTimer(plugin, 20L * 30, 20L * 30); // comprobar cada 30 segundos
     }
 
 }

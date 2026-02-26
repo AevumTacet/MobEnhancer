@@ -14,7 +14,8 @@ import com.mobenhancer.type.zombie.Hopper;
 import com.mobenhancer.type.zombie.Hydra;
 import com.mobenhancer.type.zombie.Infected;
 import com.mobenhancer.type.zombie.Latcher;
-import com.mobenhancer.type.zombie.Pillar;
+import com.mobenhancer.type.zombie.Thrower;
+
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Skeleton;
 import org.bukkit.entity.Zombie;
@@ -64,7 +65,7 @@ public final class MobEnhancer extends JavaPlugin {
         registerType(new Hopper());
         registerType(new Infected());
         registerType(new Hydra());
-        registerType(new Pillar());
+        registerType(new Thrower(rng));
         registerType(new Latcher());
 
         // SKELETON TYPES
