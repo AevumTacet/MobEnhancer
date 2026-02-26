@@ -67,7 +67,7 @@ public class PutridColossus extends Boss {
     }
 
     public PutridColossus(JavaPlugin plugin) {
-        super(plugin, "putrid_colossus", "Putrid Colossus", 1200.0);
+        super(plugin, "putrid_colossus", "Putrid Colossus", 1600.0);
     }
 
     @Override

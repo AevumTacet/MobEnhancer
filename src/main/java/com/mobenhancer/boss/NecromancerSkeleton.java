@@ -28,9 +28,9 @@ import java.util.UUID;
 public class NecromancerSkeleton extends Boss {
 
     // Constantes
-    private static final double MAX_HEALTH = 800.0;
+    private static final double MAX_HEALTH = 600.0;
     private static final double SCALE = 1.5;
-    private static final double PROJECTILE_DAMAGE = 15.0; // máximo
+    private static final double PROJECTILE_DAMAGE = 12.0; // máximo
     private static final int PROJECTILE_COOLDOWN_SECONDS = 2;
     private static final double PROJECTILE_CHANCE = 0.6;
     private static final int SUMMON_COOLDOWN_SECONDS = 20;
