@@ -22,15 +22,22 @@ public class Pillar implements ZombieCustomType {
 
     @Override
     public void onSpawn(Zombie zombie, CreatureSpawnEvent e) {
+        if (zombie == null) return;
         Zombie last = zombie;
         for (int i = 0; i < 2; i++) {
             Zombie z = (Zombie) zombie.getWorld().spawn(zombie.getLocation(), zombie.getType().getEntityClass(),
-                    it -> it.getPersistentDataContainer().set(MobEnhancer.zombieKey, PersistentDataType.STRING,
-                            "default"));
+                    it -> {
+                        if (it != null) {
+                            it.getPersistentDataContainer().set(MobEnhancer.zombieKey, PersistentDataType.STRING,
+                                    "default");
+                        }
+                    });
 
             incrAttribute(z, Attribute.MAX_HEALTH, -10);
 
-            last.addPassenger(z);
+            if (last != null) {
+                last.addPassenger(z);
+            }
             last = z;
         }
     }

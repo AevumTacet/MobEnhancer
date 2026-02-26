@@ -47,17 +47,21 @@ public class Hydra implements ZombieCustomType {
         for (int i = 0; i < 2; i++) {
             Zombie copy = (Zombie) zombie.getWorld().spawn(zombie.getLocation(),
                     Objects.requireNonNull(zombie.getType().getEntityClass()), it -> {
-                        MobEnhancer.getInstance().setZombieType((Zombie) it,
-                                MobEnhancer.getInstance().getZombieType("hydra"));
-                        ((Zombie) it).setLootTable(null);
-                        if (it instanceof ZombieVillager zV)
-                            zV.setVillagerProfession(Villager.Profession.NITWIT);
-                        multiples.put((Zombie) it, multi + 1);
+                        if (it != null) {
+                            MobEnhancer.getInstance().setZombieType((Zombie) it,
+                                    MobEnhancer.getInstance().getZombieType("hydra"));
+                            ((Zombie) it).setLootTable(null);
+                            if (it instanceof ZombieVillager zV)
+                                zV.setVillagerProfession(Villager.Profession.NITWIT);
+                            multiples.put((Zombie) it, multi + 1);
+                        }
                     });
 
-            AttributeInstance h = copy.getAttribute(Attribute.MAX_HEALTH);
-            if (h != null)
-                h.setBaseValue(h.getValue() / ((double) multi / 2));
+            if (copy != null) {
+                AttributeInstance h = copy.getAttribute(Attribute.MAX_HEALTH);
+                if (h != null)
+                    h.setBaseValue(h.getValue() / ((double) multi / 2));
+            }
         }
     }
 }

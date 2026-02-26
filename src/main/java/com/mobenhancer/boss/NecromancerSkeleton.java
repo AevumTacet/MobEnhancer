@@ -436,8 +436,6 @@ public class NecromancerSkeleton extends Boss {
                 50, 3, 2, 3, 0.1, dustOptions);
 
         int count = random.nextInt(SUMMON_COUNT) + 1;
-        int spawned = 0;
-
         for (int i = 0; i < count; i++) {
             Location spawnLoc = findGroundLocationRobust(bossLoc);
             if (spawnLoc == null) {
@@ -447,8 +445,6 @@ public class NecromancerSkeleton extends Boss {
 
             Skeleton familiar = spawnFamiliar(spawnLoc, target);
             familiars.add(familiar);
-            spawned++;
-
             // Efecto de aparición por familiar
             world.spawnParticle(Particle.WITCH, spawnLoc.clone().add(0, 1, 0),
                     20, 0.4, 0.6, 0.4, 0.05);
