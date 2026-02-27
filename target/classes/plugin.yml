@@ -4,6 +4,7 @@ main: com.mobenhancer.MobEnhancer
 api-version: '1.21.8'
 authors: [ Telwa ]
 description: Add new abilities to the old mobs.
+softdepend: [ CraftEngine ]
 commands:
   MobEnhancer:
     description: Reloads the plugin.

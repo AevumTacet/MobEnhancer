@@ -31,59 +31,86 @@ boss-spawn:
   broadcast-message: "&cA abomination is about to appear at X: %x Y: %y Z: %z!"
 
 bosses:
+
   putrid_colossus:
     enabled: true
     weight: 10
-    health: 400
-    damage: 10
-    loot:
-      - material: DIAMOND
-        amount: 1-3
-        chance: 0.5
-      - material: NETHERITE_SCRAP
-        amount: 1
-        chance: 0.1
+    # helmet: "minecraft:carved_pumpkin"   # descomenta para sobreescribir el casco por defecto
+    drops:
+      exp: 200
+      items:
+        - item: "minecraft:diamond"
+          amount: 3
+          chance: 1.0
+        - item: "minecraft:rotten_flesh"
+          amount: 8
+          chance: 1.0
+        - item: "minecraft:netherite_scrap"
+          amount: 1
+          chance: 0.10
+
   necromancer_skeleton:
     enabled: true
     weight: 10
-    health: 300
-    loot:
-      - material: DIAMOND
-        amount: 1-3
-        chance: 0.5
-      - material: NETHERITE_SCRAP
-        amount: 1
-        chance: 0.1
+    # helmet: "regnum:necromancer_skull"   # descomenta para usar item de CraftEngine
+    drops:
+      exp: 180
+      items:
+        - item: "minecraft:bone"
+          amount: 10
+          chance: 1.0
+        - item: "minecraft:experience_bottle"
+          amount: 4
+          chance: 1.0
+        - item: "minecraft:diamond"
+          amount: 2
+          chance: 0.50
+        - item: "minecraft:netherite_scrap"
+          amount: 1
+          chance: 0.10
+
   enderman_overseer:
     enabled: true
     weight: 10
-    health: 300
-    loot:
-      - material: DIAMOND
-        amount: 1-3
-        chance: 0.5
-      - material: NETHERITE_SCRAP
-        amount: 1
-        chance: 0.1
+    helmet: "minecraft:carved_pumpkin"
+    drops:
+      exp: 250
+      items:
+        - item: "minecraft:elytra"
+          amount: 1
+          chance: 1.0
+        - item: "minecraft:chorus_fruit"
+          amount: 4
+          chance: 1.0
+        - item: "minecraft:diamond"
+          amount: 2
+          chance: 0.50
+        - item: "minecraft:netherite_scrap"
+          amount: 1
+          chance: 0.10
+
   wandering_warden:
     enabled: true
     weight: 8
-    health: 400
-    loot:
-      - material: DIAMOND
-        amount: 1-3
-        chance: 0.5
-      - material: NETHERITE_SCRAP
-        amount: 1
-        chance: 0.1
+    drops:
+      exp: 300
+      items:
+        - item: "minecraft:diamond"
+          amount: 3
+          chance: 1.0
+        - item: "minecraft:netherite_scrap"
+          amount: 1
+          chance: 0.15
+
   nether_raid:
     enabled: true
     weight: 5
-    health: 250   # para el happy ghast
-    loot:
-      - material: DIAMOND
-        amount: 1-3
-        chance: 0.5
-      - material: NETHERITE_SCRAP
-        amount: 1
-        chance: 0.1
+    drops:
+      exp: 220
+      items:
+        - item: "minecraft:diamond"
+          amount: 2
+          chance: 1.0
+        - item: "minecraft:netherite_scrap"
+          amount: 1
+          chance: 0.10

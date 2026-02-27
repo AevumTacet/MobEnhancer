@@ -75,15 +75,15 @@ public class PutridColossus extends Boss {
         World world = location.getWorld();
         Zombie zombie = (Zombie) world.spawnEntity(location, EntityType.ZOMBIE);
         zombie.setAdult();
-        ItemStack customHead = createCustomHead();
-        zombie.getEquipment().setHelmet(customHead);
+
+        zombie.getEquipment().setHelmet(resolveHelmet(createCustomHead()));
         zombie.getEquipment().setHelmetDropChance(0);
 
         zombie.getAttribute(Attribute.SCALE).setBaseValue(2.5);
         zombie.getAttribute(Attribute.MAX_HEALTH).setBaseValue(maxHealth);
         zombie.setHealth(maxHealth);
         zombie.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(0.2);
-        zombie.getAttribute(Attribute.ATTACK_DAMAGE).setBaseValue(19.0);
+        zombie.getAttribute(Attribute.ATTACK_DAMAGE).setBaseValue(20.0);
         zombie.getAttribute(Attribute.KNOCKBACK_RESISTANCE).setBaseValue(1.0);
         zombie.setRemoveWhenFarAway(false);
 
@@ -177,7 +177,7 @@ public class PutridColossus extends Boss {
                         Player p = (Player) e;
                         double distance = p.getLocation().distance(landLoc);
                         if (distance <= 8) {
-                            double damage = 6 * (1 - (distance / 8));
+                            double damage = 10 * (1 - (distance / 8));
                             p.damage(damage, entity);
 
                             Vector kb = p.getLocation().toVector()
@@ -316,9 +316,6 @@ public class PutridColossus extends Boss {
         }
     }
 
-    /**
-     * Realiza el ataque de agarrar y lanzar (similar a Thrower).
-     */
     private void performThrowAttack(LivingEntity target) {
 
         Zombie zombie = (Zombie) entity;
@@ -438,8 +435,7 @@ public class PutridColossus extends Boss {
 
     @Override
     public void onDeath(EntityDeathEvent event) {
-        event.getDrops().clear();
-        event.getDrops().add(new ItemStack(Material.DIAMOND, 3));
+        rollDrops(event);
         despawn();
     }
 }

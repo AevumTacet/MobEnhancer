@@ -19,9 +19,9 @@ import java.util.Random;
 public class EndermanOverseer extends Boss {
 
     // ── Atributos base ───────────────────────────────────────────────
-    private static final double MAX_HEALTH    = 800.0;
+    private static final double MAX_HEALTH    = 1000.0;
     private static final double SCALE         = 2.5;
-    private static final double ATTACK_DAMAGE = 10.0;
+    private static final double ATTACK_DAMAGE = 12.0;
 
     // ── Movimiento manual ────────────────────────────────────────────
     private static final double WALK_FOLLOW_RANGE = 6.0; // sigue al target hasta 6 bloques
@@ -43,7 +43,7 @@ public class EndermanOverseer extends Boss {
     private static final int    DISARM_WARNING_SECS    = 5;
 
     // ── Mustering ───────────────────────────────────────────────────
-    private static final double SUMMON_CHANCE       = 0.3;
+    private static final double SUMMON_CHANCE       = 0.4;
     private static final int    SUMMON_PER_WAVE     = 2;
     private static final int    SUMMON_MAX_WAVES    = 3;      
     private static final long   SUMMON_COOLDOWN_MS  = 40_000L;
@@ -113,8 +113,9 @@ public class EndermanOverseer extends Boss {
         overseer.getAttribute(Attribute.ATTACK_DAMAGE).setBaseValue(ATTACK_DAMAGE);
         overseer.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(0.25);
         overseer.getAttribute(Attribute.FOLLOW_RANGE).setBaseValue(32.0);
-        overseer.getEquipment().setHelmet(new ItemStack(Material.CARVED_PUMPKIN));
-        overseer.getEquipment().setHelmetDropChance(0);
+
+        ItemStack helmetFallback = new ItemStack(Material.CARVED_PUMPKIN);
+        overseer.getEquipment().setHelmet(resolveHelmet(new ItemStack(Material.CARVED_PUMPKIN)));        overseer.getEquipment().setHelmetDropChance(0);
         overseer.setCarriedBlock(null);
 
         markAsBoss(overseer);
@@ -1104,12 +1105,7 @@ public class EndermanOverseer extends Boss {
 
     @Override
     public void onDeath(EntityDeathEvent event) {
-        // Los shulkers sobreviven intencionalmente, no se eliminan aquí
-
-        event.getDrops().clear();
-        event.getDrops().add(new ItemStack(Material.ELYTRA, 1));
-        event.getDrops().add(new ItemStack(Material.CHORUS_FRUIT, 4));
-
+        rollDrops(event); 
         despawn();
     }
 
@@ -1299,4 +1295,5 @@ public class EndermanOverseer extends Boss {
 
         entity.setRotation(yaw, pitch);
     }
+
 }

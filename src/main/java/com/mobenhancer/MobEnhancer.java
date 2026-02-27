@@ -16,6 +16,8 @@ import com.mobenhancer.type.zombie.Infected;
 import com.mobenhancer.type.zombie.Latcher;
 import com.mobenhancer.type.zombie.Thrower;
 
+import com.mobenhancer.integration.CraftEngineHook;
+
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Skeleton;
 import org.bukkit.entity.Zombie;
@@ -75,6 +77,8 @@ public final class MobEnhancer extends JavaPlugin {
         registerSkeletonType(new Grenadier());
         registerSkeletonType(new SpiderJockey());
 
+
+        CraftEngineHook.initialize(this);
         bossSpawnManager = new BossSpawnManager(this);
     }
 

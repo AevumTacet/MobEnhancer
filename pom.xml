@@ -59,6 +59,11 @@
             <id>sonatype</id>
             <url>https://oss.sonatype.org/content/groups/public/</url>
         </repository>
+        <repository>
+            <id>xiaomomi's plugins-releases</id>
+            <name>XiaoMoMi's Plugin Repository</name>
+            <url>https://repo.momirealms.net/releases</url>
+        </repository>
     </repositories>
 
     <dependencies>
@@ -66,6 +71,18 @@
             <groupId>org.spigotmc</groupId>
             <artifactId>spigot-api</artifactId>
             <version>1.21.11-R0.1-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>net.momirealms</groupId>
+            <artifactId>craft-engine-core</artifactId>
+            <version>0.0.65</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>net.momirealms</groupId>
+            <artifactId>craft-engine-bukkit</artifactId>
+            <version>0.0.65</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>

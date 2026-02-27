@@ -17,6 +17,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
 import com.mobenhancer.MobEnhancer;
+import com.mobenhancer.integration.CraftEngineHook;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -140,16 +141,18 @@ public class NecromancerSkeleton extends Boss {
         necromancer.setHealth(MAX_HEALTH);
         necromancer.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(0.25);
         necromancer.getAttribute(Attribute.FOLLOW_RANGE).setBaseValue(24.0);
-        // Le damos un arco para que la IA lo considere un atacante a distancia
-        necromancer.getEquipment().setItemInMainHand(new ItemStack(Material.BOW));
+
+        ItemStack weapon = CraftEngineHook.resolveItem("regnum:necrostaff");
+        if (weapon == null) weapon = new ItemStack(Material.BOW);
+        necromancer.getEquipment().setItemInMainHand(weapon);
         necromancer.getEquipment().setItemInMainHandDropChance(0);
-        ItemStack head = createCustomHead();
-        necromancer.getEquipment().setHelmet(head);
+
+        necromancer.getEquipment().setHelmet(resolveHelmet(createCustomHead()));
         necromancer.getEquipment().setHelmetDropChance(0);
 
-        // Eliminar tipo skeleton previo
         necromancer.getPersistentDataContainer().remove(MobEnhancer.skeletonKey);
-        necromancer.getPersistentDataContainer().set(MobEnhancer.skeletonKey, PersistentDataType.STRING, "default");
+        necromancer.getPersistentDataContainer().set(
+                MobEnhancer.skeletonKey, PersistentDataType.STRING, "default");
     }
 
     private void startTicking() {
@@ -872,10 +875,6 @@ public class NecromancerSkeleton extends Boss {
         // (si onDeath ya la procesó, isValid() devolverá false)
         if (entity != null && entity.isValid() && !entity.isDead()) {
             Location deathLoc = entity.getLocation();
-            deathLoc.getWorld().dropItemNaturally(deathLoc,
-                    new ItemStack(Material.BONE, 10));
-            deathLoc.getWorld().dropItemNaturally(deathLoc,
-                    new ItemStack(Material.EXPERIENCE_BOTTLE, 4));
             deathLoc.getWorld().spawnParticle(
                     Particle.EXPLOSION, deathLoc.clone().add(0, 1, 0), 3,
                     0.5, 0.5, 0.5, 0.1);
@@ -896,11 +895,8 @@ public class NecromancerSkeleton extends Boss {
 
     @Override
     public void onDeath(EntityDeathEvent event) {
-        // Limpiar drops por defecto y añadir los nuestros
-        event.getDrops().clear();
-        // Delegar toda la limpieza a forceCleanup para evitar duplicación
-        // Marcar active = false primero para detener el tick inmediatamente
         active = false;
+        rollDrops(event);   // ← reemplaza el bloque hardcodeado de drops
         forceCleanup();
     }
 }
