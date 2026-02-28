@@ -17,6 +17,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
 import com.mobenhancer.MobEnhancer;
+import com.mobenhancer.integration.CraftEngineHook;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -35,34 +36,29 @@ public class PutridColossus extends Boss {
     private static final double HORDE_CALL_CHANCE = 0.1;
     private static final int HORDE_CALL_COOLDOWN = 10;
 
-    private static final double PHASE2_HEALTH_PERCENT       = 0.30;
-    // Multiplicadores de fase 2
-    private static final double PHASE2_JUMP_CHANCE          = JUMP_CHANCE   * 1.5; // 0.225
-    private static final double PHASE2_THROW_CHANCE         = THROW_CHANCE  * 1.5; // 0.30
+    private static final double PHASE2_HEALTH_PERCENT   = 0.30;
+    private static final double PHASE2_JUMP_CHANCE      = JUMP_CHANCE  * 1.5;
+    private static final double PHASE2_THROW_CHANCE     = THROW_CHANCE * 1.5;
 
     private boolean phase2Active = false;
 
-    private static final String CUSTOM_TEXTURE_HASH = "ddbc98f98e71537e2b66317a32731b924a9e4de6963f8fd75f94a2208740cb3c";
+    private static final String CUSTOM_TEXTURE_HASH =
+            "ddbc98f98e71537e2b66317a32731b924a9e4de6963f8fd75f94a2208740cb3c";
 
     @SuppressWarnings("deprecation")
     private ItemStack createCustomHead() {
         ItemStack head = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) head.getItemMeta();
-
         PlayerProfile profile = Bukkit.createPlayerProfile(UUID.randomUUID(), "Custom");
         PlayerTextures textures = profile.getTextures();
-
         try {
-            URL skinUrl = new URL("https://textures.minecraft.net/texture/" + CUSTOM_TEXTURE_HASH);
-            textures.setSkin(skinUrl);
+            textures.setSkin(new URL("https://textures.minecraft.net/texture/" + CUSTOM_TEXTURE_HASH));
         } catch (MalformedURLException ex) {
             throw new RuntimeException("URL de textura inválida", ex);
         }
-
         profile.setTextures(textures);
         meta.setOwnerProfile(profile);
         head.setItemMeta(meta);
-
         return head;
     }
 
@@ -79,6 +75,12 @@ public class PutridColossus extends Boss {
         zombie.getEquipment().setHelmet(resolveHelmet(createCustomHead()));
         zombie.getEquipment().setHelmetDropChance(0);
 
+        // ── Maza custom (feature A) ───────────────────────────────────────────
+        ItemStack mace = CraftEngineHook.resolveItem("regnum:colossus_mace");
+        if (mace == null) mace = new ItemStack(Material.MACE); // fallback vanilla
+        zombie.getEquipment().setItemInMainHand(mace);
+        zombie.getEquipment().setItemInMainHandDropChance(0);
+
         zombie.getAttribute(Attribute.SCALE).setBaseValue(2.5);
         zombie.getAttribute(Attribute.MAX_HEALTH).setBaseValue(maxHealth);
         zombie.setHealth(maxHealth);
@@ -87,16 +89,21 @@ public class PutridColossus extends Boss {
         zombie.getAttribute(Attribute.KNOCKBACK_RESISTANCE).setBaseValue(1.0);
         zombie.setRemoveWhenFarAway(false);
 
-        // Eliminar cualquier tipo zombie previo y forzar default
-        zombie.getPersistentDataContainer().remove(MobEnhancer.zombieKey);
-        zombie.getPersistentDataContainer().set(MobEnhancer.zombieKey, PersistentDataType.STRING, "default");
+        // ── Nombre invisible para el kill message (feature B) ────────────────
+        // setCustomName con formato controla el mensaje de muerte.
+        // setCustomNameVisible(false) oculta el nametag sobre la cabeza.
+        zombie.setCustomName(ChatColor.DARK_GREEN + "Putrid Colossus");
+        zombie.setCustomNameVisible(false);
 
-        // Marcar como boss
+        zombie.getPersistentDataContainer().remove(MobEnhancer.zombieKey);
+        zombie.getPersistentDataContainer().set(
+                MobEnhancer.zombieKey, PersistentDataType.STRING, "default");
+
         markAsBoss(zombie);
 
-        this.entity = zombie;
+        this.entity   = zombie;
         this.entityId = zombie.getUniqueId();
-        this.active = true;
+        this.active   = true;
 
         initBossBar();
         holdChunk();
@@ -121,7 +128,6 @@ public class PutridColossus extends Boss {
         updateBossBar();
         updateBossBarViewers(50);
 
-        // Comprobar transición a fase 2
         if (!phase2Active && entity.getHealth() <= maxHealth * PHASE2_HEALTH_PERCENT) {
             activatePhase2();
         }
@@ -131,15 +137,17 @@ public class PutridColossus extends Boss {
 
         LivingEntity target = ((Zombie) entity).getTarget();
 
-        // Invalidar target si está muerto, en otro mundo, o a más de 100 bloques
         if (target instanceof Player player && !isValidTarget(player)) {
             ((Zombie) entity).setTarget(null);
             target = null;
         }
 
-        // Chances de salto y horda dependen de la fase activa
+        // ── Bug 1 fix: actualizar lastTargetTime mientras haya target activo ──
+        if (target != null) {
+            lastTargetTime = System.currentTimeMillis();
+        }
+
         double currentJumpChance  = phase2Active ? PHASE2_JUMP_CHANCE  : JUMP_CHANCE;
-        double currentHordeChance = HORDE_CALL_CHANCE; // la horda no cambia en fase 2
 
         if (target != null && jumpCooldown == 0
                 && random.nextDouble() < currentJumpChance) {
@@ -148,7 +156,7 @@ public class PutridColossus extends Boss {
         }
 
         if (target != null && hordeCallCooldown == 0
-                && random.nextDouble() < currentHordeChance) {
+                && random.nextDouble() < HORDE_CALL_CHANCE) {
             callHorde(target);
             hordeCallCooldown = HORDE_CALL_COOLDOWN;
         }
@@ -158,9 +166,7 @@ public class PutridColossus extends Boss {
         Vector direction = target.getLocation().toVector()
                 .subtract(entity.getLocation().toVector())
                 .normalize();
-        double strength = 1.1;
-        Vector velocity = direction.multiply(strength).setY(0.8);
-        entity.setVelocity(velocity);
+        entity.setVelocity(direction.multiply(1.1).setY(0.8));
 
         entity.getWorld().spawnParticle(Particle.CLOUD, entity.getLocation(), 20, 0.5, 0.5, 0.5, 0.1);
         entity.getWorld().playSound(entity.getLocation(), Sound.ENTITY_BAT_TAKEOFF, 1.0f, 0.8f);
@@ -179,12 +185,9 @@ public class PutridColossus extends Boss {
                         if (distance <= 8) {
                             double damage = 10 * (1 - (distance / 8));
                             p.damage(damage, entity);
-
                             Vector kb = p.getLocation().toVector()
                                     .subtract(landLoc.toVector())
-                                    .normalize()
-                                    .multiply(1.5)
-                                    .setY(0.5);
+                                    .normalize().multiply(1.5).setY(0.5);
                             p.setVelocity(kb);
                         }
                     });
@@ -202,17 +205,13 @@ public class PutridColossus extends Boss {
                 .filter(e -> e instanceof Zombie && !e.equals(entity))
                 .map(e -> (Zombie) e)
                 .forEach(zombie -> {
-                    if (zombie.getPersistentDataContainer().has(new NamespacedKey(plugin, "boss_type"),
+                    if (zombie.getPersistentDataContainer().has(
+                            new NamespacedKey(plugin, "boss_type"),
                             PersistentDataType.STRING)) return;
-
                     if (zombie.getTarget() == null || !(zombie.getTarget() instanceof Player)) {
                         zombie.setTarget(target);
                         zombie.addPotionEffect(new PotionEffect(
-                                PotionEffectType.SPEED,
-                                120,
-                                1,
-                                false,
-                                false));
+                                PotionEffectType.SPEED, 120, 1, false, false));
                     }
                 });
 
@@ -223,36 +222,19 @@ public class PutridColossus extends Boss {
     @Override
     public void onDamage(EntityDamageByEntityEvent event) {
         if (!active || entity == null) return;
-
-        // Si el coloso recibe daño
-        if (entity.equals(event.getEntity())) {
-            handleDefense(event);
-        }
-
-        // Si el coloso ataca (cuerpo a cuerpo)
-        if (event.getDamager().equals(entity) && event.getEntity() instanceof LivingEntity target) {
-            handleAttack(target);
-        }
+        if (entity.equals(event.getEntity())) handleDefense(event);
+        if (event.getDamager().equals(entity)
+                && event.getEntity() instanceof LivingEntity t) handleAttack(t);
     }
 
-    /**
-     * Maneja los ataques del coloso (cuando él es el dañador)
-     */
     private void handleAttack(LivingEntity target) {
         double currentThrowChance = phase2Active ? PHASE2_THROW_CHANCE : THROW_CHANCE;
-        if (random.nextDouble() < currentThrowChance) {
-            performThrowAttack(target);
-        }
+        if (random.nextDouble() < currentThrowChance) performThrowAttack(target);
     }
 
-
-    /**
-     * Maneja cuando el coloso recibe daño (defensa)
-     */
     private void handleDefense(EntityDamageByEntityEvent event) {
         if (random.nextDouble() < 0.2 && !poisoning) {
             poisoning = true;
-
             new BukkitRunnable() {
                 int ticks = 0;
 
@@ -263,49 +245,31 @@ public class PutridColossus extends Boss {
                         cancel();
                         return;
                     }
-
                     if (ticks >= 3) {
                         Location center = entity.getLocation();
                         World world = center.getWorld();
-
-                        world.spawnParticle(Particle.SPORE_BLOSSOM_AIR,
-                                center, 80, 4, 2, 4, 0);
+                        world.spawnParticle(Particle.SPORE_BLOSSOM_AIR, center, 80, 4, 2, 4, 0);
                         drawPoisonRing(center, 8.0);
 
-                        // Fase 2: amplifier y duración duplicados
-                        int poisonAmplifier  = phase2Active ? 1 : 0; // nivel 2 vs nivel 1
-                        int slowAmplifier    = phase2Active ? 3 : 1; // nivel 4 vs nivel 2
-                        int weakAmplifier    = phase2Active ? 1 : 0; // nivel 2 vs nivel 1
-                        int duration         = phase2Active ? 400 : 200; // 20s vs 10s
+                        int poisonAmplifier = phase2Active ? 1 : 0;
+                        int slowAmplifier   = phase2Active ? 3 : 1;
+                        int weakAmplifier   = phase2Active ? 1 : 0;
+                        int duration        = phase2Active ? 400 : 200;
 
                         world.getNearbyEntities(center, 8, 4, 8).stream()
                                 .filter(e -> e instanceof Player)
                                 .forEach(e -> {
                                     Player p = (Player) e;
-                                    p.addPotionEffect(new PotionEffect(
-                                            PotionEffectType.POISON,
-                                            duration, poisonAmplifier));
-                                    p.addPotionEffect(new PotionEffect(
-                                            PotionEffectType.SLOWNESS,
-                                            duration, slowAmplifier));
-                                    p.addPotionEffect(new PotionEffect(
-                                            PotionEffectType.WEAKNESS,
-                                            duration, weakAmplifier));
-
-                                    // Fase 2: añadir nausea como efecto adicional
-                                    if (phase2Active) {
-                                        p.addPotionEffect(new PotionEffect(
-                                                PotionEffectType.NAUSEA,
-                                                duration, 0));
-                                    }
+                                    p.addPotionEffect(new PotionEffect(PotionEffectType.POISON,   duration, poisonAmplifier));
+                                    p.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,  duration, slowAmplifier));
+                                    p.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS,  duration, weakAmplifier));
+                                    if (phase2Active)
+                                        p.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, duration, 0));
                                 });
-
                         poisoning = false;
                         cancel();
                         return;
                     }
-
-                    // Partículas de advertencia — más intensas en fase 2
                     int particleCount = phase2Active ? 60 : 30;
                     entity.getWorld().spawnParticle(Particle.SNEEZE,
                             entity.getLocation().clone().add(0, 2, 0),
@@ -317,20 +281,20 @@ public class PutridColossus extends Boss {
     }
 
     private void performThrowAttack(LivingEntity target) {
-
         Zombie zombie = (Zombie) entity;
         zombie.addPassenger(target);
         zombie.getWorld().playSound(zombie.getLocation(), Sound.ENTITY_HORSE_SADDLE, 1, 1);
 
         Bukkit.getScheduler().runTaskLater(MobEnhancer.getInstance(), () -> {
-            if (!zombie.getPassengers().isEmpty() && zombie.getPassengers().getFirst() == target) {
+            if (!zombie.getPassengers().isEmpty()
+                    && zombie.getPassengers().getFirst() == target) {
                 zombie.removePassenger(target);
                 Bukkit.getScheduler().runTaskLater(MobEnhancer.getInstance(), () -> {
                     Vector d = zombie.getLocation().getDirection().normalize();
-                    Vector v = d.multiply(1 + random.nextDouble(1.25)).setY(1 + random.nextDouble(0.25));
-
-                    zombie.getWorld().playSound(zombie.getLocation(), Sound.BLOCK_PISTON_EXTEND, .75f, 1);
-
+                    Vector v = d.multiply(1 + random.nextDouble(1.25))
+                                .setY(1 + random.nextDouble(0.25));
+                    zombie.getWorld().playSound(zombie.getLocation(),
+                            Sound.BLOCK_PISTON_EXTEND, .75f, 1);
                     target.setVelocity(v);
                 }, 1L);
             }
@@ -341,16 +305,14 @@ public class PutridColossus extends Boss {
         World world = center.getWorld();
         int points = 36;
         double angleStep = 2 * Math.PI / points;
-
         for (int i = 0; i < points; i++) {
             double angle = i * angleStep;
             double x = center.getX() + radius * Math.cos(angle);
             double z = center.getZ() + radius * Math.sin(angle);
             int y = world.getHighestBlockYAt((int) x, (int) z) + 1;
-            Location particleLoc = new Location(world, x, y, z);
-
-            world.spawnParticle(Particle.ENTITY_EFFECT, particleLoc, 60, 0.0, 0.1, 0.0, 20.0,
-                    Color.fromRGB(0, 255, 0));
+            world.spawnParticle(Particle.ENTITY_EFFECT,
+                    new Location(world, x, y, z),
+                    60, 0.0, 0.1, 0.0, 20.0, Color.fromRGB(0, 255, 0));
         }
         world.playSound(center, Sound.ENTITY_EVOKER_FANGS_ATTACK, 1.0f, 0.3f);
     }
@@ -358,35 +320,26 @@ public class PutridColossus extends Boss {
     private void activatePhase2() {
         phase2Active = true;
 
-        // Resistencia 2
         entity.addPotionEffect(new PotionEffect(
-                PotionEffectType.RESISTANCE,
-                Integer.MAX_VALUE, 1, false, true, true));
-
-        // Resistencia al fuego 2
+                PotionEffectType.RESISTANCE, Integer.MAX_VALUE, 1, false, true, true));
         entity.addPotionEffect(new PotionEffect(
-                PotionEffectType.FIRE_RESISTANCE,
-                Integer.MAX_VALUE, 1, false, true, true));
+                PotionEffectType.FIRE_RESISTANCE, Integer.MAX_VALUE, 1, false, true, true));
 
         Location loc = entity.getLocation().clone();
         World world = loc.getWorld();
 
-        // Sonidos de transición
-        world.playSound(loc, Sound.ENTITY_GENERIC_EXPLODE,    1.5f, 0.4f);
-        world.playSound(loc, Sound.ENTITY_EVOKER_CAST_SPELL,  1.0f, 0.3f);
-        world.playSound(loc, Sound.ENTITY_ZOMBIE_VILLAGER_CONVERTED, 1.0f, 0.5f);
+        world.playSound(loc, Sound.ENTITY_GENERIC_EXPLODE,              1.5f, 0.4f);
+        world.playSound(loc, Sound.ENTITY_EVOKER_CAST_SPELL,            1.0f, 0.3f);
+        world.playSound(loc, Sound.ENTITY_ZOMBIE_VILLAGER_CONVERTED,    1.0f, 0.5f);
 
-        // Explosión de partículas de veneno
         world.spawnParticle(Particle.EXPLOSION, loc.clone().add(0, 1, 0), 3);
         world.spawnParticle(Particle.SPORE_BLOSSOM_AIR,
                 loc.clone().add(0, 2, 0), 120, 3, 2, 3, 0.05);
 
-        // Anillo de veneno expandiéndose
         drawPoisonRing(loc, 8.0);
         drawPoisonRing(loc, 5.0);
         drawPoisonRing(loc, 2.5);
 
-        // Animación de pulso verde durante 2.5 segundos
         new BukkitRunnable() {
             double angle = 0;
             int ticks = 0;
@@ -394,36 +347,24 @@ public class PutridColossus extends Boss {
             @Override
             public void run() {
                 if (ticks >= 50 || !active || entity == null || entity.isDead()) {
-                    cancel();
-                    return;
+                    cancel(); return;
                 }
-
                 double progress = ticks / 50.0;
-                // Radio que crece y luego se contrae
                 double radius = 6.0 * Math.sin(progress * Math.PI);
-
                 for (int i = 0; i < 8; i++) {
                     double a = angle + i * (Math.PI / 4);
                     double x = loc.getX() + radius * Math.cos(a);
                     double z = loc.getZ() + radius * Math.sin(a);
-                    double y = loc.getY() + 1.5
-                            + Math.sin(ticks * 0.25 + i) * 1.2;
-
+                    double y = loc.getY() + 1.5 + Math.sin(ticks * 0.25 + i) * 1.2;
                     world.spawnParticle(Particle.ENTITY_EFFECT,
                             new Location(world, x, y, z),
-                            1, 0, 0, 0, 0,
-                            Color.fromRGB(0, 200, 50));
+                            1, 0, 0, 0, 0, Color.fromRGB(0, 200, 50));
                 }
-
-                // Partículas de esporas adicionales en el punto álgido de la animación
                 if (ticks == 25) {
                     world.spawnParticle(Particle.SPORE_BLOSSOM_AIR,
-                            loc.clone().add(0, 3, 0),
-                            200, 4, 3, 4, 0.02);
-                    world.playSound(loc, Sound.ENTITY_SLIME_SQUISH_SMALL,
-                            2.0f, 0.3f);
+                            loc.clone().add(0, 3, 0), 200, 4, 3, 4, 0.02);
+                    world.playSound(loc, Sound.ENTITY_SLIME_SQUISH_SMALL, 2.0f, 0.3f);
                 }
-
                 angle += 0.3;
                 ticks++;
             }
