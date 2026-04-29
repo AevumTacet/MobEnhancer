@@ -10,6 +10,8 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
+import com.mobenhancer.events.BossDespawnEvent;
+
 import java.util.*;
 import java.util.function.Function;
 
@@ -336,14 +338,14 @@ public class BossSpawnManager implements Listener {
         // Seleccionar boss
         String selectedId = (bossId != null) ? bossId : selectRandomBossId();
         if (selectedId == null || !bossConstructors.containsKey(selectedId)) {
-            player.sendMessage("§cBoss ID no válido: " + bossId);
+            player.sendMessage("§cInvalid boss ID: " + bossId);
             return false;
         }
 
         // Buscar ubicación cerca del jugador, con distancia reducida para testing
         Location spawnLoc = findSurfaceLocationNearForTest(player.getLocation());
         if (spawnLoc == null) {
-            player.sendMessage("§cNo se encontró una ubicación válida cercana.");
+            player.sendMessage("§cNo valid location found nearby.");
             return false;
         }
 
@@ -403,24 +405,32 @@ public class BossSpawnManager implements Listener {
 
                     if (idleTime >= BOSS_NO_TARGET_TIMEOUT_MS) {
                         plugin.getLogger().info("[BossSpawnManager] Boss '" + boss.getId()
-                                + "' eliminado por inactividad ("
-                                + (idleTime / 1000) + "s sin target).");
-
-                        // Efectos de despawn para que no desaparezca abruptamente
+                                + "' Despawned because of inactivity ("
+                                + (idleTime / 1000) + "s without target).");
+                
                         Location loc = boss.getEntity().getLocation();
                         loc.getWorld().spawnParticle(
                                 Particle.EXPLOSION, loc.clone().add(0, 1, 0), 3,
                                 0.5, 0.5, 0.5, 0.1
                         );
                         loc.getWorld().playSound(loc, Sound.ENTITY_WITHER_DEATH, 1.0f, 1.2f);
-
-                        // Eliminar de activeBosses todas las entradas que apunten a este boss
-                        // (entidad principal + caballo en el caso del Necromancer)
+                
+                        // Fire BossDespawnEvent BEFORE removing the entity so listeners
+                        // can still reference the entity object if needed.
+                        BossDespawnEvent despawnEvent = new BossDespawnEvent(
+                                boss.getEntityId(),
+                                boss.getId(),
+                                boss.getEntity() != null ? boss.getEntity().getName() : boss.getId(),
+                                BossDespawnEvent.Reason.TIMEOUT,
+                                boss.getEntity()
+                        );
+                        Bukkit.getPluginManager().callEvent(despawnEvent);
+                
+                        // Remove from activeBosses and despawn
                         activeBosses.entrySet().removeIf(e -> e.getValue().equals(boss));
-
-                        // Despawnear el boss y limpiar sus recursos
                         boss.despawn();
                     }
+
                 });
             }
         }.runTaskTimer(plugin, 20L * 30, 20L * 30); // comprobar cada 30 segundos
