@@ -75,7 +75,7 @@ public class PutridColossus extends Boss {
         zombie.getEquipment().setHelmet(resolveHelmet(createCustomHead()));
         zombie.getEquipment().setHelmetDropChance(0);
 
-        // ── Maza custom (feature A) ───────────────────────────────────────────
+        // ── Maza custom ───────────────────────────────────────────
         ItemStack mace = CraftEngineHook.resolveItem("regnum:colossus_mace");
         if (mace == null) mace = new ItemStack(Material.MACE); // fallback vanilla
         zombie.getEquipment().setItemInMainHand(mace);

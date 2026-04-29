@@ -30,21 +30,21 @@ public class NecromancerSkeleton extends Boss {
 
     private static final double MAX_HEALTH                       = 600.0;
     private static final double SCALE                            = 1.5;
-    private static final double PROJECTILE_DAMAGE                = 12.0;
-    private static final int    PROJECTILE_COOLDOWN_SECONDS      = 2;
+    private static final double PROJECTILE_DAMAGE                = 8.0;
+    private static final int    PROJECTILE_COOLDOWN_SECONDS      = 3;
     private static final double PROJECTILE_CHANCE                = 0.6;
     private static final int    SUMMON_COOLDOWN_SECONDS          = 20;
     private static final double SUMMON_CHANCE                    = 0.4;
     private static final int    SUMMON_COUNT                     = 4;
     private static final double SUMMON_RADIUS                    = 8.0;
-    private static final double LIFESTEAL_AURA_CHANCE            = 0.4;
+    private static final double LIFESTEAL_AURA_CHANCE            = 0.3;
     private static final double LIFESTEAL_AURA_TRIGGER_HEALTH_PERCENT = 0.75;
-    private static final double LIFESTEAL_AURA_RADIUS            = 8.0;
+    private static final double LIFESTEAL_AURA_RADIUS            = 5.0;
     private static final int    LIFESTEAL_AURA_DURATION          = 3;
     private static final double LIFESTEAL_AURA_DAMAGE_PER_SECOND = 25.0;
 
     private static final double PHASE2_HEALTH_PERCENT  = 0.30;
-    private static final double PHASE2_BLIND_RADIUS    = 6.0;
+    private static final double PHASE2_BLIND_RADIUS    = 5.0;
     private static final int    PHASE2_BLIND_DURATION  = 60;
     private static final int    PHASE2_BLIND_AMPLIFIER = 0;
     private boolean phase2Active = false;
