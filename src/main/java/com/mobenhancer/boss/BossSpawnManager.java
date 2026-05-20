@@ -11,6 +11,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
 import com.mobenhancer.events.BossDespawnEvent;
+import com.mobenhancer.events.BossSpawnEvent;
 
 import java.util.*;
 import java.util.function.Function;
@@ -200,8 +201,114 @@ public class BossSpawnManager implements Listener {
             }
         }.runTaskLater(plugin, 20L * 60 * 8); // 8 minutos en ticks
 
-        PendingSpawn ps = new PendingSpawn(location, bossId, stand, particleTask, timeoutTask);
+        PendingSpawn ps = new PendingSpawn(location, bossId, stand, particleTask, timeoutTask, false);
         pendingSpawns.put(stand.getUniqueId(), ps);
+    }
+
+    /**
+     * Creates a placeholder for a BossQuest.
+     * Identical to createPlaceholder() but:
+     * - marks the PendingSpawn as quest origin
+     * - does NOT send a broadcast (Reputation handles messaging)
+     * - uses a custom timeout from the quest
+     *
+     * @param location   Where the placeholder appears
+     * @param bossId     Which boss to spawn
+     * @param timeoutTicks How long before the placeholder expires (in ticks)
+     * @return The ArmorStand UUID of the placeholder, for tracking
+     */
+    public UUID createQuestPlaceholder(Location location,
+                                        String bossId,
+                                        long timeoutTicks) {
+        if (!bossConstructors.containsKey(bossId)) {
+            plugin.getLogger().warning(
+                "[BossSpawnManager] createQuestPlaceholder: unknown bossId '"
+                + bossId + "'");
+            return null;
+        }
+
+        World world = location.getWorld();
+        ArmorStand stand = (ArmorStand) world.spawnEntity(
+                location, EntityType.ARMOR_STAND);
+        stand.setInvisible(true);
+        stand.setGravity(false);
+        stand.setMarker(true);
+        stand.setInvulnerable(true);
+        stand.setSmall(true);
+        stand.setRemoveWhenFarAway(false);
+        stand.setPersistent(true);
+        stand.getPersistentDataContainer().set(
+                placeholderKey, PersistentDataType.BYTE, (byte) 1);
+
+        BukkitTask particleTask = new BukkitRunnable() {
+            private double angle = 0;
+            private final Location base = location.clone();
+
+            @Override
+            public void run() {
+                if (!stand.isValid() || stand.isDead()) { cancel(); return; }
+                World world = base.getWorld();
+
+                // Same spiral particle effect as natural placeholders
+                for (int arm = 0; arm < 2; arm++) {
+                    double armOffset = arm * Math.PI;
+                    for (int step = 0; step < 12; step++) {
+                        double t = step / 12.0;
+                        double currentAngle = angle + armOffset + (t * Math.PI * 3);
+                        double radius = 0.6 + t * 0.4;
+                        double height = t * 3.5;
+                        double x = base.getX() + radius * Math.cos(currentAngle);
+                        double z = base.getZ() + radius * Math.sin(currentAngle);
+                        double y = base.getY() + height;
+                        int red   = (int) (80  * (1 - t) + 40  * t);
+                        int green = (int) (0   * (1 - t) + 10  * t);
+                        int blue  = (int) (180 * (1 - t) + 255 * t);
+                        world.spawnParticle(Particle.DUST,
+                                new Location(world, x, y, z),
+                                1, 0, 0, 0, 0,
+                                new Particle.DustOptions(
+                                        Color.fromRGB(red, green, blue), 1.3f));
+                    }
+                }
+                world.spawnParticle(Particle.PORTAL,
+                        base.clone().add(0, 0.5, 0),
+                        6, 0.3, 0.1, 0.3, 0.4);
+                if ((int)(angle * 10) % 15 == 0) {
+                    world.spawnParticle(Particle.END_ROD,
+                            base.clone().add(0, 3.8, 0),
+                            3, 0.2, 0.1, 0.2, 0.02);
+                }
+                angle += 0.25;
+                if (angle > Math.PI * 2) angle -= Math.PI * 2;
+            }
+        }.runTaskTimer(plugin, 0L, 3L);
+
+        BukkitTask timeoutTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                removePlaceholder(stand.getUniqueId());
+            }
+        }.runTaskLater(plugin, timeoutTicks);
+
+        PendingSpawn ps = new PendingSpawn(
+                location, bossId, stand, particleTask, timeoutTask, true);
+        pendingSpawns.put(stand.getUniqueId(), ps);
+
+        plugin.getLogger().info("[BossSpawnManager] Quest placeholder created "
+                + "for boss '" + bossId + "' at "
+                + location.getBlockX() + ", "
+                + location.getBlockY() + ", "
+                + location.getBlockZ());
+
+        return stand.getUniqueId();
+    }
+
+    /**
+     * Returns true if the placeholder with the given UUID still exists.
+     * Used by BossQuestInstance to check if activation occurred.
+     */
+    public boolean isPlaceholderActive(UUID standUuid) {
+        return pendingSpawns.containsKey(standUuid);
     }
 
     /**
@@ -248,7 +355,9 @@ public class BossSpawnManager implements Listener {
             double horizontalDistanceSquared = dx * dx + dz * dz;
 
             if (horizontalDistanceSquared <= 8 * 8) {
-                spawnBoss(ps.location, ps.bossId);
+                spawnBoss(ps.location, ps.bossId, ps.isQuestSpawn
+                ? BossSpawnEvent.Origin.QUEST
+                : BossSpawnEvent.Origin.NATURAL);
                 removePlaceholder(standId);
             }
         });
@@ -267,19 +376,33 @@ public class BossSpawnManager implements Listener {
         return available;
     }
 
-    /**
-     * Spawnea un boss directamente en la ubicación indicada (para comandos).
-     * @param location Ubicación donde aparecerá
-     * @param bossId    Identificador del boss
-     * @return true si el boss existe y se generó correctamente
-     */
     public boolean spawnBoss(Location location, String bossId) {
+        return spawnBoss(location, bossId, BossSpawnEvent.Origin.NATURAL);
+    }
+
+    /**
+     * Overload that accepts an origin — used by quest and admin spawns.
+     */
+    public boolean spawnBoss(Location location, String bossId,
+                            BossSpawnEvent.Origin origin) {
         Function<JavaPlugin, Boss> constructor = bossConstructors.get(bossId);
         if (constructor == null) return false;
-        
+
         Boss boss = constructor.apply(plugin);
         boss.spawn(location);
         activeBosses.put(boss.getEntityId(), boss);
+
+        // Fire BossSpawnEvent — entityId is available synchronously after spawn()
+        BossSpawnEvent spawnEvent = new BossSpawnEvent(
+                boss.getEntityId(),
+                boss.getId(),
+                boss.getEntity() != null ? boss.getEntity().getName() : boss.getId(),
+                location,
+                boss.getEntity(),
+                origin
+        );
+        Bukkit.getPluginManager().callEvent(spawnEvent);
+
         return true;
     }
 
@@ -317,18 +440,22 @@ public class BossSpawnManager implements Listener {
 
     // Clase interna para almacenar datos del placeholder
     private static class PendingSpawn {
-        Location location;
-        String bossId;
+        Location  location;
+        String    bossId;
         ArmorStand stand;
         BukkitTask particleTask;
         BukkitTask timeoutTask;
+        boolean   isQuestSpawn; // ← nuevo campo
 
-        PendingSpawn(Location loc, String bossId, ArmorStand stand, BukkitTask particleTask, BukkitTask timeoutTask) {
-            this.location = loc;
-            this.bossId = bossId;
-            this.stand = stand;
-            this.particleTask = particleTask;
-            this.timeoutTask = timeoutTask;
+        PendingSpawn(Location loc, String bossId, ArmorStand stand,
+                    BukkitTask particleTask, BukkitTask timeoutTask,
+                    boolean isQuestSpawn) {
+            this.location      = loc;
+            this.bossId        = bossId;
+            this.stand         = stand;
+            this.particleTask  = particleTask;
+            this.timeoutTask   = timeoutTask;
+            this.isQuestSpawn  = isQuestSpawn;
         }
     }
 

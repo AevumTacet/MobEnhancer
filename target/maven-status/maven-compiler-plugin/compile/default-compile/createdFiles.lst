@@ -5,6 +5,7 @@ com/mobenhancer/EndermanControl$2.class
 com/mobenhancer/type/skeleton/Skeleton_default.class
 com/mobenhancer/CreeperControl$1.class
 com/mobenhancer/MobEnhancer.class
+com/mobenhancer/events/BossDespawnEvent.class
 com/mobenhancer/type/zombie/Soul.class
 com/mobenhancer/boss/BossSpawnManager$4.class
 com/mobenhancer/BabyZombieControl.class
@@ -15,6 +16,7 @@ com/mobenhancer/boss/EndermanOverseer$6.class
 com/mobenhancer/EndermanControl$3.class
 com/mobenhancer/type/skeleton/Invader.class
 com/mobenhancer/type/zombie/Fiery.class
+com/mobenhancer/events/BossDespawnEvent$Reason.class
 com/mobenhancer/boss/NecromancerSkeleton$3.class
 com/mobenhancer/boss/EndermanOverseer$3.class
 com/mobenhancer/type/zombie/Latcher.class
