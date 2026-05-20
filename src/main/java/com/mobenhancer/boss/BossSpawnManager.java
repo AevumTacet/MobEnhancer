@@ -563,4 +563,12 @@ public class BossSpawnManager implements Listener {
         }.runTaskTimer(plugin, 20L * 30, 20L * 30); // comprobar cada 30 segundos
     }
 
+    /**
+     * Removes a quest placeholder by its armor stand UUID.
+     * Called by Reputation when a BossQuest fails before activation.
+     */
+    public void removeQuestPlaceholder(UUID standUuid) {
+        if (standUuid == null) return;
+        removePlaceholder(standUuid); // delegates to existing private method
+    }
 }

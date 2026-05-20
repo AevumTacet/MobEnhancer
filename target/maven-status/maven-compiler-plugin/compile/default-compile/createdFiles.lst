@@ -11,6 +11,7 @@ com/mobenhancer/boss/BossSpawnManager$4.class
 com/mobenhancer/BabyZombieControl.class
 com/mobenhancer/boss/PutridColossus$3.class
 com/mobenhancer/boss/NecromancerSkeleton$8.class
+com/mobenhancer/events/BossSpawnEvent$Origin.class
 com/mobenhancer/IgnitionControl$1.class
 com/mobenhancer/boss/EndermanOverseer$6.class
 com/mobenhancer/EndermanControl$3.class
@@ -38,6 +39,7 @@ com/mobenhancer/type/zombie/Hopper$2$1.class
 com/mobenhancer/type/zombie/Puller.class
 com/mobenhancer/cmd/Reload.class
 com/mobenhancer/boss/EndermanOverseer$12.class
+com/mobenhancer/boss/BossSpawnManager$5.class
 com/mobenhancer/boss/EndermanOverseer$4.class
 com/mobenhancer/boss/PutridColossus$1.class
 com/mobenhancer/boss/EndermanOverseer.class
@@ -53,6 +55,7 @@ com/mobenhancer/boss/EndermanOverseer$1.class
 com/mobenhancer/EndermanControl$1.class
 com/mobenhancer/type/zombie/Tank.class
 com/mobenhancer/type/zombie/WindBuster.class
+com/mobenhancer/events/BossSpawnEvent.class
 com/mobenhancer/boss/EndermanOverseer$11.class
 com/mobenhancer/type/skeleton/Grenadier$2.class
 com/mobenhancer/type/skeleton/Grenadier.class
@@ -64,6 +67,7 @@ com/mobenhancer/type/zombie/Breaker.class
 com/mobenhancer/cmd/MobSpawn.class
 com/mobenhancer/boss/EndermanOverseer$5.class
 com/mobenhancer/boss/Boss.class
+com/mobenhancer/boss/BossSpawnManager$6.class
 com/mobenhancer/boss/EndermanOverseer$13.class
 com/mobenhancer/type/zombie/Flash.class
 com/mobenhancer/DespawnControl.class

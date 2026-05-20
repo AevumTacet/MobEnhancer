@@ -18,6 +18,7 @@
 /home/ubuntu/projects/MobEnhancer/src/main/java/com/mobenhancer/cmd/MobSpawn.java
 /home/ubuntu/projects/MobEnhancer/src/main/java/com/mobenhancer/cmd/Reload.java
 /home/ubuntu/projects/MobEnhancer/src/main/java/com/mobenhancer/events/BossDespawnEvent.java
+/home/ubuntu/projects/MobEnhancer/src/main/java/com/mobenhancer/events/BossSpawnEvent.java
 /home/ubuntu/projects/MobEnhancer/src/main/java/com/mobenhancer/integration/CraftEngineHook.java
 /home/ubuntu/projects/MobEnhancer/src/main/java/com/mobenhancer/type/skeleton/Dasher.java
 /home/ubuntu/projects/MobEnhancer/src/main/java/com/mobenhancer/type/skeleton/Grenadier.java
